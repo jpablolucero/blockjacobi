@@ -1,7 +1,6 @@
-function [u,A,rhs,px,py,A0,rhs0] = get_fem(div,u_fun,f_fun, ax, bx, ay, by, tol, mx, my)
+function [u,A,rhs,px,py,A0,rhs0] = get_fem(div,u_fun,f_fun, ax, bx, ay, by, mx, my)
 if nargin < 10, my  = 2^div; end
 if nargin < 9,  mx  = 2^div; end
-if nargin < 8,  tol = 1e-14; end
 if nargin < 7,  by  = 1; end
 if nargin < 6,  ay  = 0; end
 if nargin < 5,  bx  = 1; end
@@ -56,6 +55,7 @@ end
 vec = @(M) reshape(M.',[],1);
 g   = vec(u_fun(xg,yg));
 
+tol = 1.E-14;
 B = vec( (abs(xg-ax) < tol) | (abs(xg-bx) < tol) | ...
     (abs(yg-ay) < tol) | (abs(yg-by) < tol) );
 I = ~B;

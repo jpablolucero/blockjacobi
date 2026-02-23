@@ -11,7 +11,7 @@ classdef Multigrid < handle
         m
     end
     methods
-        function obj = Multigrid(A_in,nd,lmax,tol,m)
+        function obj = Multigrid(A_in,nd,lmax,m)
             obj.bSize = nd.nDofsPerMacroFace(:);
             obj.m = m;
             obj.A     = {};

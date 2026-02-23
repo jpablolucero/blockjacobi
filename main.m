@@ -10,18 +10,16 @@ function calculate(div,divP,plot,test)
 
 [u_ref,f_fun] = test();
 
-P    = 2^divP;
+N    = 2^divP;
 
-tol  = 1e-14;
-
-s = cell(P*P,1);
+s = cell(N*N,1);
 k = 0;
-for jy = 1:P
-    ay = (jy-1)/P; by = jy/P;
-    for ix = 1:P
-        ax = (ix-1)/P; bx = ix/P;
+for jy = 1:N
+    ay = (jy-1)/N; by = jy/N;
+    for ix = 1:N
+        ax = (ix-1)/N; bx = ix/N;
         k = k + 1;
-        s{k} = Subdomain(div, f_fun, ax, bx, ay, by, tol);
+        s{k} = Subdomain(div, f_fun, ax, bx, ay, by);
     end
 end
 
@@ -38,7 +36,7 @@ t1 = tic;
 
 m = 1;
 
-S2inv = Multigrid(S2,nd,length(nd.levels),tol,m);
+S2inv = Multigrid(S2,nd,length(nd.levels),m);
 
 fprintf('Build HPS:\t\t %.6f s\n', toc(t1));
 t1 = tic;

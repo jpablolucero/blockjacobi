@@ -22,17 +22,17 @@ classdef Subdomain
         py
     end
     methods
-        function obj = Subdomain(div, f_fun, ax, bx, ay, by, tol, mx, my)
+        function obj = Subdomain(div, f_fun, ax, bx, ay, by, mx, my)
             if nargin < 10, my = 2^div; end
             if nargin < 9,  mx = 2^div; end
-            if nargin < 8,  tol = 1e-14; end
-
-            [~,~,~,px,py,K,rhs0] = get_fem(div, @(x,y) 0*x, f_fun, ax, bx, ay, by, tol, mx, my);
+            
+            [~,~,~,px,py,K,rhs0] = get_fem(div, @(x,y) 0*x, f_fun, ax, bx, ay, by, mx, my);
             obj.px = px;
             obj.py = py;
             obj.K   = full(K);
             obj.rhs0 = rhs0;
 
+            tol = 1.E-14;
             obj.idx_interior = find(~((abs(px-ax)<tol)|(abs(px-bx)<tol)|(abs(py-ay)<tol)|(abs(py-by)<tol)));
             obj.idx_corners  = find(((abs(px-ax)<tol)|(abs(px-bx)<tol)) & ((abs(py-ay)<tol)|(abs(py-by)<tol)));
             obj.idx_left     = find((abs(px-ax)<tol) & ~((abs(py-ay)<tol)|(abs(py-by)<tol)));
