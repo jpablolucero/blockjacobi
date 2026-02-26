@@ -74,8 +74,6 @@ classdef NestedDissection < handle
 
         function divide(obj, flag)
 
-            isRootDivideCall = (size(obj.map, 1) == 1);
-
             prevGrid = obj.map{end,1};
             A0 = prevGrid{1,1};
 
@@ -177,14 +175,24 @@ classdef NestedDissection < handle
                 nCrossPointsPerMacroFace = size(obj.enclosedCrossPointsPerMacroFace{level}, 2);
                 
                 obj.nDofsPerMacroFace(end+1,1)   = facesPerMacroFace * dofsPerFace + nCrossPointsPerMacroFace;
-                
+
                 for macroFace = 1:obj.macroFacesPerLevel(level)
-                    faceDofs        = (faceDofCursor + 1):(faceDofCursor + facesPerMacroFace * dofsPerFace);
-                    obj.permutation = [obj.permutation; faceDofs(:)];
-                    
-                    faceDofCursor  = faceDofCursor  + facesPerMacroFace * dofsPerFace;
-                    crossPointDofs = nFaceDofsTotal + obj.enclosedCrossPointsPerMacroFace{level}(macroFace, :).';
-                    obj.permutation = [obj.permutation; crossPointDofs(:)];
+
+                    nFaces = facesPerMacroFace;
+                    cps    = obj.enclosedCrossPointsPerMacroFace{level}(macroFace, :);
+                    nCps   = numel(cps);
+
+                    for f = 1:nFaces
+                        faceDofs = (faceDofCursor + (f-1)*dofsPerFace + 1):(faceDofCursor + f*dofsPerFace);
+                        obj.permutation = [obj.permutation; faceDofs(:)];
+
+                        if f <= nCps
+                            crossPointDof = nFaceDofsTotal + cps(f);
+                            obj.permutation = [obj.permutation; crossPointDof];
+                        end
+                    end
+
+                    faceDofCursor = faceDofCursor + nFaces * dofsPerFace;
                 end
             
             end

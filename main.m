@@ -1,9 +1,9 @@
 clear;
 
-k=pi;
+k=1;
 
-for div = 4:4
-    calculate(2,div,true,@()DtNTest1(k));
+for div = 3:3
+    calculate(2,div,false,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)
@@ -49,11 +49,12 @@ u_skel = zeros(size(S2,1),1);
 MR2 = M(R2);
 u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
-
 fprintf('Initial L2-norm of GMRES:       %d\n', norm(M(R2)));
 fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
 
 fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
+
+plot_points_in_nd_permutation_order(s, div, nd);
 
 [u_global] = reconstructVolumeSolution(s,divP,div,u_ref,nd,u_skel');
 
@@ -72,4 +73,50 @@ if plot
 end
 fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono-u_global));
 
+end
+
+function plot_points_in_nd_permutation_order(s, div, nd)
+b = 2^div - 1;
+m = size(nd.elementsPerFace, 1) * b;
+ncp = max(nd.crossPointsPerElement(:));
+n = m + ncp;
+
+x = nan(n, 1);
+y = nan(n, 1);
+
+for e = 1:numel(s)
+    for f = 1:4
+        k = nd.facePerElement(e, f);
+        if k ~= 0
+            ids = (k - 1) * b + (1:b);
+            ii = s{e}.idx(f);
+            t = isnan(x(ids));
+            x(ids(t)) = s{e}.px(ii(t));
+            y(ids(t)) = s{e}.py(ii(t));
+        end
+    end
+
+    for j = 1:4
+        kp = nd.crossPointsPerElement(e, j);
+        if kp ~= 0
+            id = m + kp;
+            if isnan(x(id))
+                ii = s{e}.idx_corners(j);
+                x(id) = s{e}.px(ii);
+                y(id) = s{e}.py(ii);
+            end
+        end
+    end
+end
+
+p = nd.permutation(1:end);
+
+figure;
+scatter(x(p), y(p), 20, 'filled');
+axis equal;
+axis([0 1 0 1]);
+
+for i = 1:numel(p)
+    text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
+end
 end
