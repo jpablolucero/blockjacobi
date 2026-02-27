@@ -64,10 +64,6 @@ classdef Subdomain < handle
                 c0fun = @(x,y) c0const + 0 .* x;
             end
 
-            if obj.poincareSteklovOperator ~= "DtN"
-                error('Subdomain: ItI requested, but this FEM Schur constructor currently implements the DtN-style Schur complement only.');
-            end
-
             [obj.px,obj.py,obj.K,obj.rhs,~] = method(div, c0fun, rhs_fun, ax, bx, ay, by);
 
             tol = 1.0e-14;
@@ -87,10 +83,20 @@ classdef Subdomain < handle
             obj.D = obj.K(obj.idx_boundary, obj.idx_boundary);
 
             obj.S = obj.D - obj.C * (obj.A \ obj.B);
-            obj.T = mat2cell(obj.S, obj.b, obj.b);
 
             h_full = obj.rhs(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
-            obj.h = mat2cell(h_full, obj.b, 1);
+
+            if obj.poincareSteklovOperator == "DtN"
+                obj.T = mat2cell(obj.S, obj.b, obj.b);
+                obj.h = mat2cell(h_full, obj.b, 1);
+            elseif obj.poincareSteklovOperator == "ItI"
+                I = speye(size(obj.S,1));
+                R = (obj.S - 1i*obj.eta*I) * ((obj.S + 1i*obj.eta*I) \ I);
+                obj.T = mat2cell(R, obj.b, obj.b);
+                obj.h = mat2cell(h_full - R*h_full, obj.b, 1);
+            else
+                error('Subdomain: Unknown Poincare Steklov Operator.');
+            end
 
             if ~isempty(BC)
                 obj.setBoundaryCondition(BC, tol);
