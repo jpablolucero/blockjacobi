@@ -27,7 +27,7 @@ for e = 1:numel(s)
         end
     end
 
-    uI{e} = s{e}.A \ (s{e}.rhs_interior - s{e}.B * uB);
+    uI{e} = s{e}.A \ (s{e}.rhs(s{e}.idx_interior) - s{e}.B * uB);
 end
 
 rowsA = 2^div + 1;
@@ -63,7 +63,7 @@ for e = 1:numel(s)
     end
 
     u_loc = zeros(numel(s{e}.px),1);
-    u_loc(s{e}.idx_interior) = s{e}.A \ (s{e}.rhs_interior - s{e}.B * uB);
+    u_loc(s{e}.idx_interior) = s{e}.A \ (s{e}.rhs(s{e}.idx_interior) - s{e}.B * uB);
     u_loc(s{e}.idx_boundary) = uB;
 
     u_cells{e} = u_loc;

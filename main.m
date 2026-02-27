@@ -3,7 +3,7 @@ clear;
 k=2;
 
 for div = 3:3
-    calculate(3,div,true,@()DtNTest2(k));
+    calculate(3,div,true,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)

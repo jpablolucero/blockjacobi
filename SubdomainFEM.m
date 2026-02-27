@@ -15,8 +15,7 @@ classdef SubdomainFEM
         S
         T
         K
-        rhs0
-        rhs_interior
+        rhs
         h
         px
         py
@@ -71,7 +70,7 @@ classdef SubdomainFEM
             obj.px = px;
             obj.py = py;
             obj.K = full(K);
-            obj.rhs0 = rhs0;
+            obj.rhs = rhs0;
 
             tol = 1.0e-14;
             obj.idx_interior = find(~((abs(px-ax)<tol) | (abs(px-bx)<tol) | (abs(py-ay)<tol) | (abs(py-by)<tol)));
@@ -92,8 +91,7 @@ classdef SubdomainFEM
             obj.S = obj.D - obj.C * (obj.A \ obj.B);
             obj.T = mat2cell(obj.S, obj.b, obj.b);
 
-            obj.rhs_interior = obj.rhs0(obj.idx_interior);
-            h_full = obj.rhs0(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs_interior);
+            h_full = obj.rhs(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
             obj.h = mat2cell(h_full, obj.b, 1);
         end
 

@@ -15,8 +15,7 @@ classdef SubdomainSEM
         S
         T
         K
-        rhs0
-        rhs_interior
+        rhs
         h
         px
         py
@@ -98,7 +97,7 @@ classdef SubdomainSEM
                 c0vals .* kron(My, Mx) );
 
             rhs_vals = f_fun(obj.px, obj.py);
-            obj.rhs0 = kron(xWeights, yWeights) .* rhs_vals;
+            obj.rhs = kron(xWeights, yWeights) .* rhs_vals;
 
             tol = 1.0e-14;
 
@@ -139,8 +138,7 @@ classdef SubdomainSEM
             obj.S = obj.D - obj.C * (obj.A \ obj.B);
             obj.T = mat2cell(obj.S, obj.b, obj.b);
 
-            obj.rhs_interior = obj.rhs0(obj.idx_interior);
-            h_full = obj.rhs0(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs_interior);
+            h_full = obj.rhs(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
             obj.h = mat2cell(h_full, obj.b, 1);
         end
 
