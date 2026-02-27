@@ -1,4 +1,4 @@
-classdef SubdomainFEM
+classdef SubdomainFEM < handle
     properties (SetAccess=public)
         idx_interior
         idx_left
@@ -24,7 +24,7 @@ classdef SubdomainFEM
     end
 
     methods
-        function obj = SubdomainFEM(div, f_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator)
+        function obj = SubdomainFEM(div, f_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator, BC)
             if nargin < 6
                 error('Subdomain: You must specify div, f_fun, ax, bx, ay, by.');
             end
@@ -36,6 +36,9 @@ classdef SubdomainFEM
             end
             if nargin < 9
                 poincareSteklovOperator = "DtN";
+            end
+            if nargin < 10
+                BC = [];
             end
 
             if ax >= bx
@@ -93,6 +96,68 @@ classdef SubdomainFEM
 
             h_full = obj.rhs(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
             obj.h = mat2cell(h_full, obj.b, 1);
+
+            if ~isempty(BC)
+                obj.setBoundaryCondition(BC, tol);
+            end
+        end
+
+        function setBoundaryCondition(obj, BC, tol)
+            if nargin < 3
+                tol = 1.0e-12;
+            end
+
+            if any(abs(obj.px(obj.idx_left) - 0) < tol)
+                for r = 1:5
+                    obj.h{r} = obj.h{r} - obj.T{r,1} * BC{1}(obj.px(obj.idx_left), obj.py(obj.idx_left));
+                end
+            end
+
+            if any(abs(obj.px(obj.idx_right) - 1) < tol)
+                for r = 1:5
+                    obj.h{r} = obj.h{r} - obj.T{r,2} * BC{2}(obj.px(obj.idx_right), obj.py(obj.idx_right));
+                end
+            end
+
+            if any(abs(obj.py(obj.idx_bottom) - 0) < tol)
+                for r = 1:5
+                    obj.h{r} = obj.h{r} - obj.T{r,3} * BC{3}(obj.px(obj.idx_bottom), obj.py(obj.idx_bottom));
+                end
+            end
+
+            if any(abs(obj.py(obj.idx_top) - 1) < tol)
+                for r = 1:5
+                    obj.h{r} = obj.h{r} - obj.T{r,4} * BC{4}(obj.px(obj.idx_top), obj.py(obj.idx_top));
+                end
+            end
+
+            for c = 1:4
+                id = obj.idx_corners(c);
+
+                if abs(obj.px(id) - 0) < tol || abs(obj.px(id) - 1) < tol || abs(obj.py(id) - 0) < tol || abs(obj.py(id) - 1) < tol
+                    vals = [];
+
+                    if abs(obj.px(id) - 0) < tol
+                        vals(end+1,1) = BC{1}(obj.px(id), obj.py(id));
+                    end
+
+                    if abs(obj.px(id) - 1) < tol
+                        vals(end+1,1) = BC{2}(obj.px(id), obj.py(id));
+                    end
+
+                    if abs(obj.py(id) - 0) < tol
+                        vals(end+1,1) = BC{3}(obj.px(id), obj.py(id));
+                    end
+
+                    if abs(obj.py(id) - 1) < tol
+                        vals(end+1,1) = BC{4}(obj.px(id), obj.py(id));
+                    end
+
+                    for r = 1:5
+                        obj.h{r} = obj.h{r} - obj.T{r,5}(:,c) * mean(vals);
+                    end
+                end
+            end
         end
 
         function indices = idx(obj,block)
