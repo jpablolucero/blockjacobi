@@ -1,0 +1,16 @@
+function [u_exact,rhs,c0,BC,poincareSteklovOperator] = DtNTest2(k)
+
+bump = @(x,y) -1.5 * exp(-160. * ((x-0.5).^2 + (y-0.5).^2));
+c0 = @(x,y) -k^2*(1.0-bump(x,y));
+u_exact = @(x,y) sin(8*pi./(x+y+pi/5));
+BC = {@(x, y) u_exact(x,y),...
+      @(x, y) u_exact(x,y),...
+      @(x, y) u_exact(x,y),...
+      @(x, y) u_exact(x,y)};
+rhs = @(x,y) ...
+    -  32*pi.*cos(8*pi./(x+y+pi/5))./(x+y+pi/5).^3 ...
+    + 128*pi^2*sin(8*pi./(x+y+pi/5))./(x+y+pi/5).^4 + + c0(x,y) .* u_exact(x,y);
+
+poincareSteklovOperator = "DtN";
+
+end

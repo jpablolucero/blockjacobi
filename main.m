@@ -6,9 +6,9 @@ for div = 3:3
     calculate(3,div,true,@()DtNTest1(k));
 end
 
-function calculate(div,divP,plot,test)
+function calculate(div,divP,plot,test);
 
-[u_ref,f_fun] = test();
+[u_ref,f_fun,c0,BC,poincareSteklovOperator] = test();
 
 N    = 2^divP;
 
@@ -19,8 +19,8 @@ for jy = 1:N
     for ix = 1:N
         ax = (ix-1)/N; bx = ix/N;
         k = k + 1;
-        s{k} = SubdomainSEM(div, f_fun, ax, bx, ay, by);
-    end
+        s{k} = SubdomainSEM(div, f_fun, ax, bx, ay, by, 1, 1, 0, c0, poincareSteklovOperator);
+    end 
 end
 
 nd = NestedDissection(divP);
