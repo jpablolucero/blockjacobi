@@ -1,9 +1,9 @@
 clear;
 
-k=1;
+k=2;
 
 for div = 3:3
-    calculate(2,div,false,@()DtNTest1(k));
+    calculate(3,div,true,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)
@@ -19,7 +19,7 @@ for jy = 1:N
     for ix = 1:N
         ax = (ix-1)/N; bx = ix/N;
         k = k + 1;
-        s{k} = Subdomain(div, f_fun, ax, bx, ay, by);
+        s{k} = SubdomainSEM(div, f_fun, ax, bx, ay, by);
     end
 end
 
@@ -54,11 +54,10 @@ fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutati
 
 fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
 
-plot_points_in_nd_permutation_order(s, div, nd);
+% nstart = 1;
+% plot_points_in_nd_permutation_order(s, div, nd, S2(nstart:end,nstart:end),nstart:length(R2));
 
-[u_global] = reconstructVolumeSolution(s,divP,div,u_ref,nd,u_skel');
-
-[uMono,~,~,pxG,pyG] = get_fem(divP+div,u_ref,f_fun);
+[u_global,u_cells,pxG,pyG] = reconstructVolumeSolution(s,divP,div,u_ref,nd,u_skel');
 
 u_ref_global = u_ref(pxG,pyG);
 fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_global));
@@ -71,11 +70,13 @@ if plot
     Z = reshape(u_global, rowsA, rowsA);
     surf(X, Y, Z);
 end
+
+[uMono] = get_fem(divP+div,u_ref,f_fun);
 fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono-u_global));
 
 end
 
-function plot_points_in_nd_permutation_order(s, div, nd)
+function plot_points_in_nd_permutation_order(s, div, nd, S2, varargin)
 b = 2^div - 1;
 m = size(nd.elementsPerFace, 1) * b;
 ncp = max(nd.crossPointsPerElement(:));
@@ -109,12 +110,28 @@ for e = 1:numel(s)
     end
 end
 
-p = nd.permutation(1:end);
+if (length(varargin)>0)
+    p = nd.permutation(varargin{1});
+else
+    p = nd.permutation(:);
+end
 
 figure;
 scatter(x(p), y(p), 20, 'filled');
 axis equal;
 axis([0 1 0 1]);
+
+% Lines
+pp = p(:);                          
+S2p = S2(1:numel(pp), 1:numel(pp)); 
+
+[I,J] = find(triu(S2p,1));
+hold on
+for k = 1:numel(I)
+    gi = pp(I(k));  gj = pp(J(k));
+    line([x(gi) x(gj)], [y(gi) y(gj)], 'Color',[0 0 0], 'LineWidth',0.25);
+end
+hold off
 
 for i = 1:numel(p)
     text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');

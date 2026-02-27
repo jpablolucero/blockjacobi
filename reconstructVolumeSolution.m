@@ -1,4 +1,4 @@
-function [u_global] = reconstructVolumeSolution(s,divP,div,u_ref,nd,u_skel)
+function [u_global, u_cells, px_global, py_global] = reconstructVolumeSolution(s,divP,div,u_ref,nd,u_skel)
 b  = 2^div - 1;
 m  = size(nd.elementsPerFace,1) * b;
 Nx = (2^divP) * (2^div) + 1;
@@ -31,7 +31,13 @@ for e = 1:numel(s)
 end
 
 rowsA = 2^div + 1;
+
 u_global = zeros(Nx^2,1);
+
+u_cells = cell(numel(s),1);
+
+px_global = nan(Nx^2,1);
+py_global = nan(Nx^2,1);
 
 P = 2^divP;
 for e = 1:numel(s)
@@ -60,6 +66,8 @@ for e = 1:numel(s)
     u_loc(s{e}.idx_interior) = s{e}.A \ (s{e}.rhs_interior - s{e}.B * uB);
     u_loc(s{e}.idx_boundary) = uB;
 
+    u_cells{e} = u_loc;
+
     [il, jl] = ind2sub([rowsA rowsA], (1:numel(s{e}.px))');
     ix = mod(e-1, P) + 1;
     jy = floor((e-1)/P) + 1;
@@ -69,5 +77,8 @@ for e = 1:numel(s)
     ids = (gy-1)*Nx + gx;
 
     u_global(ids) = u_loc;
+
+    px_global(ids) = s{e}.px(:);
+    py_global(ids) = s{e}.py(:);
 end
 end
