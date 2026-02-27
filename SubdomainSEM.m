@@ -25,23 +25,17 @@ classdef SubdomainSEM
     end
 
     methods
-        function obj = SubdomainSEM(div, f_fun, ax, bx, ay, by, mx, my, eta, c0, poincareSteklovOperator)
+        function obj = SubdomainSEM(div, f_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator)
             if nargin < 6
                 error('SubdomainSEM: You must specify div, f_fun, ax, bx, ay, by.');
             end
             if nargin < 7
-                mx = 1;
-            end
-            if nargin < 8
-                my = 1;
-            end
-            if nargin < 9
                 eta = 0;
             end
-            if nargin < 10
+            if nargin < 8
                 c0 = 0;
             end
-            if nargin < 11
+            if nargin < 9
                 poincareSteklovOperator = "DtN";
             end
 
@@ -50,12 +44,6 @@ classdef SubdomainSEM
             end
             if ay >= by
                 error('SubdomainSEM: ay must be < by.');
-            end
-            if mx ~= 1
-                error('SubdomainSEM expects one element per subdomain: mx=1.');
-            end
-            if my ~= 1
-                error('SubdomainSEM expects one element per subdomain: my=1.');
             end
 
             if (poincareSteklovOperator == "DtN")
@@ -179,6 +167,7 @@ classdef SubdomainSEM
             end
             error('SubdomainSEM.idx: block must be 1..5.');
         end
+        
     end
 
     methods (Static)

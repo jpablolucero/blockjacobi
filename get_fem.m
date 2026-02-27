@@ -1,10 +1,10 @@
-function [u,A,rhs,px,py,A0,rhs0] = get_fem(div,u_fun,f_fun, ax, bx, ay, by, mx, my)
-if nargin < 10, my  = 2^div; end
-if nargin < 9,  mx  = 2^div; end
-if nargin < 7,  by  = 1; end
-if nargin < 6,  ay  = 0; end
-if nargin < 5,  bx  = 1; end
-if nargin < 4,  ax  = 0; end
+function [px,py,K,rhs0] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my)
+if nargin < 10, my = 2^div; end
+if nargin < 9,  mx = 2^div; end
+if nargin < 7,  by = 1; end
+if nargin < 6,  ay = 0; end
+if nargin < 5,  bx = 1; end
+if nargin < 4,  ax = 0; end
 
 hx = (bx - ax) / mx;
 hy = (by - ay) / my;
@@ -32,18 +32,23 @@ for j = 1:my
         Fe = zeros(4,1);
 
         for a = 1:ni
-            X = gp(a); wx = w(a);
+            X = gp(a);
+            wx = w(a);
             for b = 1:ni
-                Y = gp(b); wy = w(b);
+                Y = gp(b);
+                wy = w(b);
 
                 N   = [(1-X)*(1-Y); X*(1-Y); (1-X)*Y; X*Y];
                 dNx = [  -(1-Y)/hx;(1-Y)/hx;   -Y/hx;Y/hx];
                 dNy = [  -(1-X)/hy;   -X/hy;(1-X)/hy;X/hy];
 
+                xq = x0 + hx*X;
+                yq = y0 + hy*Y;
+
                 wgt = hx*hy*wx*wy;
 
-                Ke = Ke + (dNx*dNx' + dNy*dNy') * wgt;
-                Fe = Fe + N * f_fun(x0 + hx*X, y0 + hy*Y) * wgt;
+                Ke = Ke + (dNx*dNx' + dNy*dNy' + c0_fun(xq,yq) * (N*N')) * wgt;
+                Fe = Fe + N * f_fun(xq,yq) * wgt;
             end
         end
 
@@ -53,25 +58,7 @@ for j = 1:my
 end
 
 vec = @(M) reshape(M.',[],1);
-g   = vec(u_fun(xg,yg));
-
-tol = 1.E-14;
-B = vec( (abs(xg-ax) < tol) | (abs(xg-bx) < tol) | ...
-    (abs(yg-ay) < tol) | (abs(yg-by) < tol) );
-I = ~B;
-
-A   = K;
-rhs = F;
-rhs(I) = rhs(I) - K(I,B) * g(B);
-
-A0   = A;
-rhs0 = rhs;
-
-A(:,B) = 0;  A(B,:) = 0;  A(B,B) = speye(nnz(B));
-rhs(B) = g(B);
-
-u  = A \ rhs;
-
-px = vec(xg);
-py = vec(yg);
+px  = vec(xg);
+py  = vec(yg);
+rhs0 = F;
 end
