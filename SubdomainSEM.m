@@ -20,10 +20,12 @@ classdef SubdomainSEM
         h
         px
         py
+        eta
+        poincareSteklovOperator
     end
 
     methods
-        function obj = SubdomainSEM(div, f_fun, ax, bx, ay, by, mx, my)
+        function obj = SubdomainSEM(div, f_fun, ax, bx, ay, by, mx, my, eta, c0, poincareSteklovOperator)
             if nargin < 6
                 error('SubdomainSEM: You must specify div, f_fun, ax, bx, ay, by.');
             end
@@ -32,6 +34,15 @@ classdef SubdomainSEM
             end
             if nargin < 8
                 my = 1;
+            end
+            if nargin < 9
+                eta = 0;
+            end
+            if nargin < 10
+                c0 = 0;
+            end
+            if nargin < 11
+                poincareSteklovOperator = "DtN";
             end
 
             if ax >= bx
@@ -45,6 +56,22 @@ classdef SubdomainSEM
             end
             if my ~= 1
                 error('SubdomainSEM expects one element per subdomain: my=1.');
+            end
+
+            if (poincareSteklovOperator == "DtN")
+                obj.poincareSteklovOperator = "DtN";
+            elseif (poincareSteklovOperator == "ItI")
+                obj.poincareSteklovOperator = "ItI";
+            else
+                error('SubdomainSEM: Unknown Poincare Steklov Operator.');
+            end
+            obj.eta = eta;
+
+            if isa(c0, 'function_handle')
+                c0fun = c0;
+            else
+                c0const = c0;
+                c0fun = @(x,y) c0const + 0 .* x;
             end
 
             p = 2^div;
@@ -75,7 +102,12 @@ classdef SubdomainSEM
             Mx = spdiags(xWeights, 0, numel(xWeights), numel(xWeights));
             My = spdiags(yWeights, 0, numel(yWeights), numel(yWeights));
 
-            obj.K = full(kron(Dx' * Mx * Dx, My) + kron(Mx, Dy' * My * Dy));
+            c0vals = c0fun(obj.px, obj.py);
+
+            obj.K = full( ...
+                kron(Dx' * Mx * Dx, My) + ...
+                kron(Mx, Dy' * My * Dy) + ...
+                c0vals .* kron(My, Mx) );
 
             rhs_vals = f_fun(obj.px, obj.py);
             obj.rhs0 = kron(xWeights, yWeights) .* rhs_vals;
@@ -96,16 +128,20 @@ classdef SubdomainSEM
             obj.idx_top = find(on_top & ~(on_left | on_right));
 
             obj.idx_boundary = [obj.idx_left;
-                                obj.idx_right;
-                                obj.idx_bottom;
-                                obj.idx_top;
-                                obj.idx_corners];
+                obj.idx_right;
+                obj.idx_bottom;
+                obj.idx_top;
+                obj.idx_corners];
 
             obj.b = [numel(obj.idx_left);
-                     numel(obj.idx_right);
-                     numel(obj.idx_bottom);
-                     numel(obj.idx_top);
-                     numel(obj.idx_corners)];
+                numel(obj.idx_right);
+                numel(obj.idx_bottom);
+                numel(obj.idx_top);
+                numel(obj.idx_corners)];
+
+            if obj.poincareSteklovOperator ~= "DtN"
+                error('SubdomainSEM: ItI requested, but this SEM Schur constructor currently implements the DtN-style Schur complement only.');
+            end
 
             obj.A = obj.K(obj.idx_interior, obj.idx_interior);
             obj.B = obj.K(obj.idx_interior, obj.idx_boundary);
@@ -116,7 +152,6 @@ classdef SubdomainSEM
             obj.T = mat2cell(obj.S, obj.b, obj.b);
 
             obj.rhs_interior = obj.rhs0(obj.idx_interior);
-
             h_full = obj.rhs0(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs_interior);
             obj.h = mat2cell(h_full, obj.b, 1);
         end
