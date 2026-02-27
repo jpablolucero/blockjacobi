@@ -19,7 +19,7 @@ for jy = 1:N
     for ix = 1:N
         ax = (ix-1)/N; bx = ix/N;
         k = k + 1;
-        s{k} = SubdomainSEM(div, f_fun, ax, bx, ay, by, 0, c0, poincareSteklovOperator,BC);
+        s{k} = Subdomain(div, f_fun, ax, bx, ay, by, 0, c0, poincareSteklovOperator,BC,@get_sem);
     end 
 end
 
@@ -71,7 +71,7 @@ if plot
     surf(X, Y, Z);
 end
 
-[uMono] = get_fem(divP+div,u_ref,f_fun);
+[~,~,~,~,uMono] = get_fem(divP+div, c0, f_fun, 0, 1, 0, 1, 2^(divP+div), 2^(divP+div), BC);
 fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono-u_global));
 
 end

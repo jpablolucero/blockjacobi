@@ -1,4 +1,4 @@
-classdef SubdomainFEM < handle
+classdef Subdomain < handle
     properties (SetAccess=public)
         idx_interior
         idx_left
@@ -24,7 +24,7 @@ classdef SubdomainFEM < handle
     end
 
     methods
-        function obj = SubdomainFEM(div, f_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator, BC)
+        function obj = Subdomain(div, rhs_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator, BC, method)
             if nargin < 6
                 error('Subdomain: You must specify div, f_fun, ax, bx, ay, by.');
             end
@@ -68,20 +68,15 @@ classdef SubdomainFEM < handle
                 error('Subdomain: ItI requested, but this FEM Schur constructor currently implements the DtN-style Schur complement only.');
             end
 
-            [px,py,K,rhs0] = get_fem(div, c0fun, f_fun, ax, bx, ay, by, 2^div, 2^div);
-
-            obj.px = px;
-            obj.py = py;
-            obj.K = full(K);
-            obj.rhs = rhs0;
+            [obj.px,obj.py,obj.K,obj.rhs,~] = method(div, c0fun, rhs_fun, ax, bx, ay, by);
 
             tol = 1.0e-14;
-            obj.idx_interior = find(~((abs(px-ax)<tol) | (abs(px-bx)<tol) | (abs(py-ay)<tol) | (abs(py-by)<tol)));
-            obj.idx_corners  = find(((abs(px-ax)<tol) | (abs(px-bx)<tol)) & ((abs(py-ay)<tol) | (abs(py-by)<tol)));
-            obj.idx_left     = find((abs(px-ax)<tol) & ~((abs(py-ay)<tol) | (abs(py-by)<tol)));
-            obj.idx_right    = find((abs(px-bx)<tol) & ~((abs(py-ay)<tol) | (abs(py-by)<tol)));
-            obj.idx_bottom   = find((abs(py-ay)<tol) & ~((abs(px-ax)<tol) | (abs(px-bx)<tol)));
-            obj.idx_top      = find((abs(py-by)<tol) & ~((abs(px-ax)<tol) | (abs(px-bx)<tol)));
+            obj.idx_interior = find(~((abs(obj.px-ax)<tol) |   (abs(obj.px-bx)<tol)  |  (abs(obj.py-ay)<tol) | (abs(obj.py-by)<tol)));
+            obj.idx_corners  = find( ((abs(obj.px-ax)<tol) |   (abs(obj.px-bx)<tol)) & ((abs(obj.py-ay)<tol) | (abs(obj.py-by)<tol)));
+            obj.idx_left     = find(  (abs(obj.px-ax)<tol) & ~((abs(obj.py-ay)<tol)  |  (abs(obj.py-by)<tol)));
+            obj.idx_right    = find(  (abs(obj.px-bx)<tol) & ~((abs(obj.py-ay)<tol)  |  (abs(obj.py-by)<tol)));
+            obj.idx_bottom   = find(  (abs(obj.py-ay)<tol) & ~((abs(obj.px-ax)<tol)  |  (abs(obj.px-bx)<tol)));
+            obj.idx_top      = find(  (abs(obj.py-by)<tol) & ~((abs(obj.px-ax)<tol)  |  (abs(obj.px-bx)<tol)));
             obj.idx_boundary = [obj.idx_left; obj.idx_right; obj.idx_bottom; obj.idx_top; obj.idx_corners];
 
             obj.b = [numel(obj.idx_left), numel(obj.idx_right), numel(obj.idx_bottom), numel(obj.idx_top), numel(obj.idx_corners)];
