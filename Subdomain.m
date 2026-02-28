@@ -136,26 +136,29 @@ classdef Subdomain < handle
                 id = obj.idx_corners(c);
 
                 if abs(obj.px(id) - 0) < tol || abs(obj.px(id) - 1) < tol || abs(obj.py(id) - 0) < tol || abs(obj.py(id) - 1) < tol
-                    vals = [];
 
-                    if abs(obj.px(id) - 0) < tol
-                        vals(end+1,1) = BC{1}(obj.px(id), obj.py(id));
-                    end
+                    val = 0;
 
-                    if abs(obj.px(id) - 1) < tol
-                        vals(end+1,1) = BC{2}(obj.px(id), obj.py(id));
-                    end
-
-                    if abs(obj.py(id) - 0) < tol
-                        vals(end+1,1) = BC{3}(obj.px(id), obj.py(id));
-                    end
-
-                    if abs(obj.py(id) - 1) < tol
-                        vals(end+1,1) = BC{4}(obj.px(id), obj.py(id));
+                    if (abs(obj.px(id) - 0) < tol) && (abs(obj.py(id) - 0) < tol)
+                        val = BC{3}(obj.px(id), obj.py(id));
+                    elseif (abs(obj.px(id) - 1) < tol) && (abs(obj.py(id) - 0) < tol)
+                        val = BC{2}(obj.px(id), obj.py(id));
+                    elseif (abs(obj.px(id) - 1) < tol) && (abs(obj.py(id) - 1) < tol)
+                        val = BC{4}(obj.px(id), obj.py(id));
+                    elseif (abs(obj.px(id) - 0) < tol) && (abs(obj.py(id) - 1) < tol)
+                        val = BC{1}(obj.px(id), obj.py(id));
+                    elseif abs(obj.px(id) - 0) < tol
+                        val = BC{1}(obj.px(id), obj.py(id));
+                    elseif abs(obj.px(id) - 1) < tol
+                        val = BC{2}(obj.px(id), obj.py(id));
+                    elseif abs(obj.py(id) - 0) < tol
+                        val = BC{3}(obj.px(id), obj.py(id));
+                    elseif abs(obj.py(id) - 1) < tol
+                        val = BC{4}(obj.px(id), obj.py(id));
                     end
 
                     for r = 1:5
-                        obj.h{r} = obj.h{r} - obj.T{r,5}(:,c) * mean(vals);
+                        obj.h{r} = obj.h{r} - obj.T{r,5}(:,c) * val;
                     end
                 end
             end
