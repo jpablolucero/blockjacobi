@@ -103,64 +103,10 @@ classdef Subdomain < handle
             end
         end
 
-        function setBoundaryCondition(obj, BC, tol)
-            if nargin < 3
-                tol = 1.0e-12;
-            end
-
-            if any(abs(obj.px(obj.idx_left) - 0) < tol)
-                for r = 1:5
-                    obj.h{r} = obj.h{r} - obj.T{r,1} * BC{1}(obj.px(obj.idx_left), obj.py(obj.idx_left));
-                end
-            end
-
-            if any(abs(obj.px(obj.idx_right) - 1) < tol)
-                for r = 1:5
-                    obj.h{r} = obj.h{r} - obj.T{r,2} * BC{2}(obj.px(obj.idx_right), obj.py(obj.idx_right));
-                end
-            end
-
-            if any(abs(obj.py(obj.idx_bottom) - 0) < tol)
-                for r = 1:5
-                    obj.h{r} = obj.h{r} - obj.T{r,3} * BC{3}(obj.px(obj.idx_bottom), obj.py(obj.idx_bottom));
-                end
-            end
-
-            if any(abs(obj.py(obj.idx_top) - 1) < tol)
-                for r = 1:5
-                    obj.h{r} = obj.h{r} - obj.T{r,4} * BC{4}(obj.px(obj.idx_top), obj.py(obj.idx_top));
-                end
-            end
-
-            for c = 1:4
-                id = obj.idx_corners(c);
-
-                if abs(obj.px(id) - 0) < tol || abs(obj.px(id) - 1) < tol || abs(obj.py(id) - 0) < tol || abs(obj.py(id) - 1) < tol
-
-                    val = 0;
-
-                    if (abs(obj.px(id) - 0) < tol) && (abs(obj.py(id) - 0) < tol)
-                        val = BC{3}(obj.px(id), obj.py(id));
-                    elseif (abs(obj.px(id) - 1) < tol) && (abs(obj.py(id) - 0) < tol)
-                        val = BC{2}(obj.px(id), obj.py(id));
-                    elseif (abs(obj.px(id) - 1) < tol) && (abs(obj.py(id) - 1) < tol)
-                        val = BC{4}(obj.px(id), obj.py(id));
-                    elseif (abs(obj.px(id) - 0) < tol) && (abs(obj.py(id) - 1) < tol)
-                        val = BC{1}(obj.px(id), obj.py(id));
-                    elseif abs(obj.px(id) - 0) < tol
-                        val = BC{1}(obj.px(id), obj.py(id));
-                    elseif abs(obj.px(id) - 1) < tol
-                        val = BC{2}(obj.px(id), obj.py(id));
-                    elseif abs(obj.py(id) - 0) < tol
-                        val = BC{3}(obj.px(id), obj.py(id));
-                    elseif abs(obj.py(id) - 1) < tol
-                        val = BC{4}(obj.px(id), obj.py(id));
-                    end
-
-                    for r = 1:5
-                        obj.h{r} = obj.h{r} - obj.T{r,5}(:,c) * val;
-                    end
-                end
+        function setBoundaryCondition(obj, g, block)
+            g = g(:);
+            for r = 1:5
+                obj.h{r} = obj.h{r} - obj.T{r,block} * g;
             end
         end
 

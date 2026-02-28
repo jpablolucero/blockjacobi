@@ -12,16 +12,45 @@ function calculate(div,divP,plot,test)
 
 N    = 2^divP;
 
+Xdom = [0, 1];
+Ydom = [0, 1];
+
 s = cell(N*N,1);
 k = 0;
+tol = 1.0e-12;
+
 for jy = 1:N
-    ay = (jy-1)/N; by = jy/N;
+    ay = Ydom(1) + (jy-1) * (Ydom(2)-Ydom(1)) / N;
+    by = Ydom(1) +  jy    * (Ydom(2)-Ydom(1)) / N;
     for ix = 1:N
-        ax = (ix-1)/N; bx = ix/N;
+        ax = Xdom(1) + (ix-1) * (Xdom(2)-Xdom(1)) / N;
+        bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         k = k + 1;
-        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator,@get_fem);
-        s{k}.setBoundaryCondition(BC, 1.E-12);
-    end 
+
+        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_sem);
+
+        if abs(s{k}.ax - Xdom(1)) < tol
+            s{k}.setBoundaryCondition(BC{1}(s{k}.px(s{k}.idx(1)), s{k}.py(s{k}.idx(1))), 1);
+        end
+        if abs(s{k}.bx - Xdom(2)) < tol
+            s{k}.setBoundaryCondition(BC{2}(s{k}.px(s{k}.idx(2)), s{k}.py(s{k}.idx(2))), 2);
+        end
+        if abs(s{k}.ay - Ydom(1)) < tol
+            s{k}.setBoundaryCondition(BC{3}(s{k}.px(s{k}.idx(3)), s{k}.py(s{k}.idx(3))), 3);
+        end
+        if abs(s{k}.by - Ydom(2)) < tol
+            s{k}.setBoundaryCondition(BC{4}(s{k}.px(s{k}.idx(4)), s{k}.py(s{k}.idx(4))), 4);
+        end
+
+        ic = s{k}.idx(5);
+        gc = zeros(numel(ic),1);
+        on_global = (abs(s{k}.px(ic) - Xdom(1)) < tol) | (abs(s{k}.px(ic) - Xdom(2)) < tol) | ...
+                    (abs(s{k}.py(ic) - Ydom(1)) < tol) | (abs(s{k}.py(ic) - Ydom(2)) < tol);
+        gc(on_global) = BC{1}(s{k}.px(ic(on_global)), s{k}.py(ic(on_global)));
+        if any(on_global)
+            s{k}.setBoundaryCondition(gc, 5);
+        end
+    end
 end
 
 nd = NestedDissection(divP);
