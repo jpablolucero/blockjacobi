@@ -21,10 +21,14 @@ classdef Subdomain < handle
         py
         eta
         poincareSteklovOperator
+        ax
+        ay
+        bx
+        by
     end
 
     methods
-        function obj = Subdomain(div, rhs_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator, BC, method)
+        function obj = Subdomain(div, rhs_fun, ax, bx, ay, by, eta, c0, poincareSteklovOperator, method)
             if nargin < 6
                 error('Subdomain: You must specify div, f_fun, ax, bx, ay, by.');
             end
@@ -47,6 +51,11 @@ classdef Subdomain < handle
             if ay >= by
                 error('Subdomain: ay must be < by.');
             end
+
+            obj.ax = ax;
+            obj.ay = ay;
+            obj.bx = bx;
+            obj.by = by;
 
             if (poincareSteklovOperator == "DtN")
                 obj.poincareSteklovOperator = "DtN";
@@ -89,17 +98,8 @@ classdef Subdomain < handle
             if obj.poincareSteklovOperator == "DtN"
                 obj.T = mat2cell(obj.S, obj.b, obj.b);
                 obj.h = mat2cell(h_full, obj.b, 1);
-            elseif obj.poincareSteklovOperator == "ItI"
-                I = speye(size(obj.S,1));
-                R = (obj.S - 1i*obj.eta*I) * ((obj.S + 1i*obj.eta*I) \ I);
-                obj.T = mat2cell(R, obj.b, obj.b);
-                obj.h = mat2cell(h_full - R*h_full, obj.b, 1);
             else
                 error('Subdomain: Unknown Poincare Steklov Operator.');
-            end
-
-            if ~isempty(BC)
-                obj.setBoundaryCondition(BC, tol);
             end
         end
 

@@ -19,7 +19,8 @@ for jy = 1:N
     for ix = 1:N
         ax = (ix-1)/N; bx = ix/N;
         k = k + 1;
-        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator,BC,@get_sem);
+        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator,@get_fem);
+        s{k}.setBoundaryCondition(BC, 1.E-12);
     end 
 end
 
