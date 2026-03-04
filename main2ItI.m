@@ -32,11 +32,11 @@ for div = 5:5
     iiE{3} = IBC{3}(sdE.px(sdE.idx_bottom),  sdE.py(sdE.idx_bottom));
     iiE{4} = IBC{4}(sdE.px(sdE.idx_top),     sdE.py(sdE.idx_top));
 
-    TWfull = sdW.Mb\cell2mat(sdW.T(1:5,1:5));
-    TEfull = sdW.Mb\cell2mat(sdE.T(1:5,1:5));
+    TWfull = cell2mat(sdW.T(1:5,1:5));
+    TEfull = cell2mat(sdE.T(1:5,1:5));
 
-    hWfull = sdW.Mb\cell2mat(sdW.h(1:5));
-    hEfull = sdW.Mb\cell2mat(sdE.h(1:5));
+    hWfull = cell2mat(sdW.h(1:5));
+    hEfull = cell2mat(sdE.h(1:5));
 
     nbW4 = sum(sdW.b(1:4));
     nbE4 = sum(sdE.b(1:4));
@@ -65,11 +65,11 @@ for div = 5:5
     bW = [sdW.b(1:4), 2];
     bE = [sdE.b(1:4), 2];
 
-    SWv = (TW - 1i*eta*speye(size(TW,1))) / (TW + 1i*eta*speye(size(TW,1)));
-    SEv = (TE - 1i*eta*speye(size(TE,1))) / (TE + 1i*eta*speye(size(TE,1)));
+    SWv = sdW.Mb(keepW,keepW) \ (TW - 1i*eta*sdW.Mb(keepW,keepW)) * ((TW + 1i*eta*sdW.Mb(keepW,keepW)) \ sdW.Mb(keepW,keepW)) ;
+    SEv = sdE.Mb(keepE,keepE) \ (TE - 1i*eta*sdE.Mb(keepE,keepE)) * ((TE + 1i*eta*sdE.Mb(keepE,keepE)) \ sdE.Mb(keepE,keepE)) ;
 
-    cWv = -(2i*eta) * ((TW + 1i*eta*speye(size(TW,1))) \ hW);
-    cEv = -(2i*eta) * ((TE + 1i*eta*speye(size(TE,1))) \ hE);
+    cWv = -(2i*eta) * ((TW + 1i*eta*sdW.Mb(keepW,keepW)) \ hW);
+    cEv = -(2i*eta) * ((TE + 1i*eta*sdE.Mb(keepE,keepE)) \ hE);
 
     SW = mat2cell(SWv, bW.', bW.');  cW = mat2cell(cWv, bW.', 1);
     SE = mat2cell(SEv, bE.', bE.');  cE = mat2cell(cEv, bE.', 1);
