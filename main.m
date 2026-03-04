@@ -2,8 +2,8 @@ clear;
 
 k=2;
 
-for div = 3:3
-    calculate(3,div,true,@()DtNTest1(k));
+for div = 1:1
+    calculate(5,div,true,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)
@@ -12,8 +12,8 @@ function calculate(div,divP,plot,test)
 
 N    = 2^divP;
 
-Xdom = [0, 1];
-Ydom = [0, 1];
+Xdom = [0, 2];
+Ydom = [0, 2];
 
 s = cell(N*N,1);
 k = 0;
@@ -27,7 +27,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         k = k + 1;
 
-        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_sem);
+        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_fem);
 
         if abs(s{k}.ax - Xdom(1)) < tol
             s{k}.setBoundaryCondition(BC{1}(s{k}.px(s{k}.idx(1)), s{k}.py(s{k}.idx(1))), 1);
@@ -101,7 +101,7 @@ if plot
     surf(X, Y, Z);
 end
 
-[~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, 0, 1, 0, 1, 2^(divP+div), 2^(divP+div), BC);
+[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), 2^(divP+div), 2^(divP+div), BC);
 fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono-u_global));
 
 end

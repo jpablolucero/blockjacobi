@@ -14,9 +14,11 @@ classdef Subdomain < handle
         D
         S
         T
+        T2
         K
         rhs
         h
+        h2
         px
         py
         eta
@@ -25,6 +27,7 @@ classdef Subdomain < handle
         ay
         bx
         by
+        Mb
     end
 
     methods
@@ -73,7 +76,7 @@ classdef Subdomain < handle
                 c0fun = @(x,y) c0const + 0 .* x;
             end
 
-            [obj.px,obj.py,obj.K,obj.rhs,~] = method(div, c0fun, rhs_fun, ax, bx, ay, by);
+            [obj.px,obj.py,obj.K,obj.rhs,obj.Mb,~] = method(div, c0fun, rhs_fun, ax, bx, ay, by);
 
             tol = 1.0e-14;
             obj.idx_interior = find(~((abs(obj.px-ax)<tol) |   (abs(obj.px-bx)<tol)  |  (abs(obj.py-ay)<tol) | (abs(obj.py-by)<tol)));
@@ -86,14 +89,16 @@ classdef Subdomain < handle
 
             obj.b = [numel(obj.idx_left), numel(obj.idx_right), numel(obj.idx_bottom), numel(obj.idx_top), numel(obj.idx_corners)];
 
+            obj.Mb = obj.Mb(obj.idx_boundary, obj.idx_boundary);
+
             obj.A = obj.K(obj.idx_interior, obj.idx_interior);
             obj.B = obj.K(obj.idx_interior, obj.idx_boundary);
             obj.C = obj.K(obj.idx_boundary, obj.idx_interior);
             obj.D = obj.K(obj.idx_boundary, obj.idx_boundary);
+            fb = obj.rhs(obj.idx_boundary);
 
             obj.S = obj.D - obj.C * (obj.A \ obj.B);
-
-            h_full = obj.rhs(obj.idx_boundary) - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
+            h_full = fb - obj.C * (obj.A \ obj.rhs(obj.idx_interior));
 
             if obj.poincareSteklovOperator == "DtN"
                 obj.T = mat2cell(obj.S, obj.b, obj.b);

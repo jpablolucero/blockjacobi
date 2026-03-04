@@ -1,4 +1,4 @@
-function [px,py,K,rhs0,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
+function [px,py,K,rhs0,Mb,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
     if nargin < 10
         BC = [];
     end
@@ -73,8 +73,35 @@ function [px,py,K,rhs0,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
     px = reshape(xg.',[],1);
     py = reshape(yg.',[],1);
 
+    Mb = sparse(Nn,Nn);
+
+    Me_y = (hy/6) * [2 1; 1 2];
+    for j = 1:my
+        n1 = node(1,j);
+        n2 = node(1,j+1);
+        Mb([n1;n2],[n1;n2]) = Mb([n1;n2],[n1;n2]) + Me_y;
+
+        n1 = node(mx+1,j);
+        n2 = node(mx+1,j+1);
+        Mb([n1;n2],[n1;n2]) = Mb([n1;n2],[n1;n2]) + Me_y;
+    end
+
+    Me_x = (hx/6) * [2 1; 1 2];
+    for i = 1:mx
+        n1 = node(i,1);
+        n2 = node(i+1,1);
+        Mb([n1;n2],[n1;n2]) = Mb([n1;n2],[n1;n2]) + Me_x;
+
+        n1 = node(i,my+1);
+        n2 = node(i+1,my+1);
+        Mb([n1;n2],[n1;n2]) = Mb([n1;n2],[n1;n2]) + Me_x;
+    end
+
+    % Mb = eye(size(Mb,1));
+
     if isempty(BC)
-        return;
+        u = [];
+        return
     end
 
     u = zeros(Nn,1);
