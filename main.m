@@ -27,7 +27,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         k = k + 1;
 
-        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_fem);
+        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_sem);
 
         if abs(s{k}.ax - Xdom(1)) < tol
             s{k}.setBoundaryCondition(BC{1}(s{k}.px(s{k}.idx(1)), s{k}.py(s{k}.idx(1))), 1);
