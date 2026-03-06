@@ -2,8 +2,8 @@ clear;
 
 k=2;
 
-for div = 1:1
-    calculate(5,div,true,@()DtNTest1(k));
+for div = 3:3
+    calculate(2,div,true,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)
@@ -12,8 +12,8 @@ function calculate(div,divP,plot,test)
 
 N    = 2^divP;
 
-Xdom = [0, 2];
-Ydom = [0, 2];
+Xdom = [0, 1];
+Ydom = [0, 1];
 
 s = cell(N*N,1);
 k = 0;
