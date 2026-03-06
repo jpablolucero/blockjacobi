@@ -13,83 +13,99 @@ axE = 1;
 bxE = 2;
 
 for div = 5:5
-    sdW = Subdomain(div, rhs, axW, bxW, ay, by, 0, c0, "DtN", @get_sem);
-    sdE = Subdomain(div, rhs, axE, bxE, ay, by, 0, c0, "DtN", @get_sem);
+    % Subdomains. W: West, E: East.
+    sW = Subdomain(div, rhs, axW, bxW, ay, by, 0, c0, "DtN", @get_sem);
+    sE = Subdomain(div, rhs, axE, bxE, ay, by, 0, c0, "DtN", @get_sem);
 
-    ubW = cell(5,1);
-    ubE = cell(5,1);
+    % Solution values at the corner of each subdomain
+    uCornerW_zg = BC{5}(sW.px(sW.idx_corners), sW.py(sW.idx_corners));
+    uCornerE_zg = BC{5}(sE.px(sE.idx_corners), sE.py(sE.idx_corners));
 
-    iiW = cell(5,1);
-    iiE = cell(5,1);
+    % Solution values at global boundary set to zero, interface corners
+    % kept, zg : Zeroed-out Global corners
+    uCornerW_zg([1,3]) = 0;
+    uCornerE_zg([2,4]) = 0;
 
-    iiW{1} = IBC{1}(sdW.px(sdW.idx_left),    sdW.py(sdW.idx_left));
-    iiW{2} = zeros(sdW.b(2),1);
-    iiW{3} = IBC{3}(sdW.px(sdW.idx_bottom),  sdW.py(sdW.idx_bottom));
-    iiW{4} = IBC{4}(sdW.px(sdW.idx_top),     sdW.py(sdW.idx_top));
+    % Amount of DoFs at edges without corners for each subdomain
+    allEdgesSizeW = sum(sW.b(1:4));
+    allEdgesSizeE = sum(sE.b(1:4));
 
-    iiE{1} = zeros(sdE.b(1),1);
-    iiE{2} = IBC{2}(sdE.px(sdE.idx_right),   sdE.py(sdE.idx_right));
-    iiE{3} = IBC{3}(sdE.px(sdE.idx_bottom),  sdE.py(sdE.idx_bottom));
-    iiE{4} = IBC{4}(sdE.px(sdE.idx_top),     sdE.py(sdE.idx_top));
+    % Homogeneous Dirichlet-to-Neumann operator for each subdomain
+    DtNHW = cell2mat(sW.T(1:5,1:5));
+    DtNHE = cell2mat(sE.T(1:5,1:5));
 
-    TWfull = cell2mat(sdW.T(1:5,1:5));
-    TEfull = cell2mat(sdE.T(1:5,1:5));
+    % Index sets of boundaries 
+    % wic: Without Interface Corners
+    idx_wic_W = [(1:allEdgesSizeW), allEdgesSizeW+1, allEdgesSizeW+3].';
+    idx_wic_E = [(1:allEdgesSizeE), allEdgesSizeE+2, allEdgesSizeE+4].';
 
-    hWfull = cell2mat(sdW.h(1:5));
-    hEfull = cell2mat(sdE.h(1:5));
+    % Homogeneous Dirichlet-to-Neumann operator 
+    % wic: Without Interface Corners
+    DtNH_wic_W = DtNHW(idx_wic_W,idx_wic_W);
+    DtNH_wic_E = DtNHE(idx_wic_E,idx_wic_E);
 
-    nbW4 = sum(sdW.b(1:4));
-    nbE4 = sum(sdE.b(1:4));
+    % Particular Dirichlet-to-Neumann operator with
+    % zg : Zeroed-out Global corners
+    DtNP_zg_W = cell2mat(sW.h(1:5)) - DtNHW*[zeros(allEdgesSizeW,1); uCornerW_zg];
+    DtNP_zg_E = cell2mat(sE.h(1:5)) - DtNHE*[zeros(allEdgesSizeE,1); uCornerE_zg];
 
-    gW5 = BC{5}(sdW.px(sdW.idx_corners), sdW.py(sdW.idx_corners));
-    gE5 = BC{5}(sdE.px(sdE.idx_corners), sdE.py(sdE.idx_corners));
+    % Particular Dirichlet-to-Neumann operator with 
+    % zg : Zeroed-out Global corners,
+    % wic: Without Interface Corners
+    DtNP_wic_zg_W = DtNP_zg_W(idx_wic_W);
+    DtNP_wic_zg_E = DtNP_zg_E(idx_wic_E);
 
-    gW5([1,3]) = 0;
-    gE5([2,4]) = 0;
+    % Homogeneous Impedance-to-Impedance operator with 
+    % zg : Zeroed-out Global corners,
+    % wic: Without Interface Corners
+    ItIH_wic_zg_W = sW.Mb(idx_wic_W,idx_wic_W) \ (DtNH_wic_W - 1i*eta*sW.Mb(idx_wic_W,idx_wic_W)) * ((DtNH_wic_W + 1i*eta*sW.Mb(idx_wic_W,idx_wic_W)) \ sW.Mb(idx_wic_W,idx_wic_W)) ;
+    ItIH_wic_zg_E = sE.Mb(idx_wic_E,idx_wic_E) \ (DtNH_wic_E - 1i*eta*sE.Mb(idx_wic_E,idx_wic_E)) * ((DtNH_wic_E + 1i*eta*sE.Mb(idx_wic_E,idx_wic_E)) \ sE.Mb(idx_wic_E,idx_wic_E)) ;
 
-    gW = [zeros(nbW4,1); gW5];
-    gE = [zeros(nbE4,1); gE5];
+    % Particular Impedance-to-Impedance operator with
+    % zg : Zeroed-out Global corners,
+    % wic: Without Interface Corners
+    ItIP_wic_zg_W = -(2i*eta) * ((DtNH_wic_W + 1i*eta*sW.Mb(idx_wic_W,idx_wic_W)) \ DtNP_wic_zg_W);
+    ItIP_wic_zg_E = -(2i*eta) * ((DtNH_wic_E + 1i*eta*sE.Mb(idx_wic_E,idx_wic_E)) \ DtNP_wic_zg_E);
 
-    hWfull = hWfull - TWfull*gW;
-    hEfull = hEfull - TEfull*gE;
+    % Cell Homogeneous Impedance-to-Impedance operator with
+    % zg : Zeroed-out Global corners,
+    % wic: Without Interface Corners
+    ItIH_wic_zg_W_cell = mat2cell(ItIH_wic_zg_W, [sW.b(1:4), 2], [sW.b(1:4), 2]);  
+    ItIH_wic_zg_E_cell = mat2cell(ItIP_wic_zg_W, [sW.b(1:4), 2], 1);
 
-    keepW = [(1:nbW4), nbW4+1, nbW4+3].';
-    keepE = [(1:nbE4), nbE4+2, nbE4+4].';
+    % Cell Particular Impedance-to-Impedance operator with
+    % zg : Zeroed-out Global corners,
+    % wic: Without Interface Corners
+    ItIP_wic_zg_W_cell = mat2cell(ItIH_wic_zg_E, [sE.b(1:4), 2], [sE.b(1:4), 2]);  
+    ItIP_wic_zg_E_cell = mat2cell(ItIP_wic_zg_E, [sE.b(1:4), 2], 1);
+    
+    % West subdomain non-interface corner points
+    xW1 = sW.px(sW.idx_corners(1));  yW1 = sW.py(sW.idx_corners(1));
+    xW3 = sW.px(sW.idx_corners(3));  yW3 = sW.py(sW.idx_corners(3));
 
-    TW = TWfull(keepW,keepW);
-    TE = TEfull(keepE,keepE);
+    % Incoming impedance boundary condition 
+    iiW = {IBC{1}(sW.px(sW.idx_left),    sW.py(sW.idx_left)),...
+           zeros(sW.b(2),1),...
+           IBC{3}(sW.px(sW.idx_bottom),  sW.py(sW.idx_bottom)),...
+           IBC{4}(sW.px(sW.idx_top),     sW.py(sW.idx_top)),...
+           [0.5*(IBC{1}(xW1,yW1) + IBC{3}(xW1,yW1));...
+            0.5*(IBC{1}(xW3,yW3) + IBC{4}(xW3,yW3))];};
 
-    hW = hWfull(keepW);
-    hE = hEfull(keepE);
+    xE2 = sE.px(sE.idx_corners(2));  yE2 = sE.py(sE.idx_corners(2));
+    xE4 = sE.px(sE.idx_corners(4));  yE4 = sE.py(sE.idx_corners(4));
+    iiE = {zeros(sE.b(1),1),...
+           IBC{2}(sE.px(sE.idx_right),   sE.py(sE.idx_right)),...
+           IBC{3}(sE.px(sE.idx_bottom),  sE.py(sE.idx_bottom)),...
+           IBC{4}(sE.px(sE.idx_top),     sE.py(sE.idx_top)),...
+           [0.5*(IBC{2}(xE2,yE2) + IBC{3}(xE2,yE2));...
+            0.5*(IBC{2}(xE4,yE4) + IBC{4}(xE4,yE4))]};
 
-    bW = [sdW.b(1:4), 2];
-    bE = [sdE.b(1:4), 2];
+    rW = ItIH_wic_zg_W_cell{2,1}*iiW{1} + ItIH_wic_zg_W_cell{2,3}*iiW{3} + ItIH_wic_zg_W_cell{2,4}*iiW{4} + ItIH_wic_zg_W_cell{2,5}*iiW{5} + ItIH_wic_zg_E_cell{2};
+    rE = ItIP_wic_zg_W_cell{1,2}*iiE{2} + ItIP_wic_zg_W_cell{1,3}*iiE{3} + ItIP_wic_zg_W_cell{1,4}*iiE{4} + ItIP_wic_zg_W_cell{1,5}*iiE{5} + ItIP_wic_zg_E_cell{1};
 
-    SWv = sdW.Mb(keepW,keepW) \ (TW - 1i*eta*sdW.Mb(keepW,keepW)) * ((TW + 1i*eta*sdW.Mb(keepW,keepW)) \ sdW.Mb(keepW,keepW)) ;
-    SEv = sdE.Mb(keepE,keepE) \ (TE - 1i*eta*sdE.Mb(keepE,keepE)) * ((TE + 1i*eta*sdE.Mb(keepE,keepE)) \ sdE.Mb(keepE,keepE)) ;
-
-    cWv = -(2i*eta) * ((TW + 1i*eta*sdW.Mb(keepW,keepW)) \ hW);
-    cEv = -(2i*eta) * ((TE + 1i*eta*sdE.Mb(keepE,keepE)) \ hE);
-
-    SW = mat2cell(SWv, bW.', bW.');  cW = mat2cell(cWv, bW.', 1);
-    SE = mat2cell(SEv, bE.', bE.');  cE = mat2cell(cEv, bE.', 1);
-
-    xW1 = sdW.px(sdW.idx_corners(1));  yW1 = sdW.py(sdW.idx_corners(1));
-    xW3 = sdW.px(sdW.idx_corners(3));  yW3 = sdW.py(sdW.idx_corners(3));
-    iiW{5} = [0.5*(IBC{1}(xW1,yW1) + IBC{3}(xW1,yW1));
-              0.5*(IBC{1}(xW3,yW3) + IBC{4}(xW3,yW3))];
-
-    xE2 = sdE.px(sdE.idx_corners(2));  yE2 = sdE.py(sdE.idx_corners(2));
-    xE4 = sdE.px(sdE.idx_corners(4));  yE4 = sdE.py(sdE.idx_corners(4));
-    iiE{5} = [0.5*(IBC{2}(xE2,yE2) + IBC{3}(xE2,yE2));
-              0.5*(IBC{2}(xE4,yE4) + IBC{4}(xE4,yE4))];
-
-    rW = SW{2,1}*iiW{1} + SW{2,3}*iiW{3} + SW{2,4}*iiW{4} + SW{2,5}*iiW{5} + cW{2};
-    rE = SE{1,2}*iiE{2} + SE{1,3}*iiE{3} + SE{1,4}*iiE{4} + SE{1,5}*iiE{5} + cE{1};
-
-    m  = sdW.b(2);
-    oI = [speye(m), SW{2,2};
-          SE{1,1},  speye(m)] \ [rW; rE];
+    m  = sW.b(2);
+    oI = [speye(m), ItIH_wic_zg_W_cell{2,2};
+          ItIP_wic_zg_W_cell{1,1},  speye(m)] \ [rW; rE];
 
     iiW{2} = -oI(m+(1:m));
     iiE{1} = -oI(1:m);
@@ -97,17 +113,17 @@ for div = 5:5
     ooW = cell(5,1);
     ooE = cell(5,1);
 
-    ooW{1} = SW{1,1}*iiW{1} + SW{1,2}*iiW{2} + SW{1,3}*iiW{3} + SW{1,4}*iiW{4} + SW{1,5}*iiW{5} + cW{1};
-    ooW{2} = SW{2,1}*iiW{1} + SW{2,2}*iiW{2} + SW{2,3}*iiW{3} + SW{2,4}*iiW{4} + SW{2,5}*iiW{5} + cW{2};
-    ooW{3} = SW{3,1}*iiW{1} + SW{3,2}*iiW{2} + SW{3,3}*iiW{3} + SW{3,4}*iiW{4} + SW{3,5}*iiW{5} + cW{3};
-    ooW{4} = SW{4,1}*iiW{1} + SW{4,2}*iiW{2} + SW{4,3}*iiW{3} + SW{4,4}*iiW{4} + SW{4,5}*iiW{5} + cW{4};
-    ooW{5} = SW{5,1}*iiW{1} + SW{5,2}*iiW{2} + SW{5,3}*iiW{3} + SW{5,4}*iiW{4} + SW{5,5}*iiW{5} + cW{5};
+    ooW{1} = ItIH_wic_zg_W_cell{1,1}*iiW{1} + ItIH_wic_zg_W_cell{1,2}*iiW{2} + ItIH_wic_zg_W_cell{1,3}*iiW{3} + ItIH_wic_zg_W_cell{1,4}*iiW{4} + ItIH_wic_zg_W_cell{1,5}*iiW{5} + ItIH_wic_zg_E_cell{1};
+    ooW{2} = ItIH_wic_zg_W_cell{2,1}*iiW{1} + ItIH_wic_zg_W_cell{2,2}*iiW{2} + ItIH_wic_zg_W_cell{2,3}*iiW{3} + ItIH_wic_zg_W_cell{2,4}*iiW{4} + ItIH_wic_zg_W_cell{2,5}*iiW{5} + ItIH_wic_zg_E_cell{2};
+    ooW{3} = ItIH_wic_zg_W_cell{3,1}*iiW{1} + ItIH_wic_zg_W_cell{3,2}*iiW{2} + ItIH_wic_zg_W_cell{3,3}*iiW{3} + ItIH_wic_zg_W_cell{3,4}*iiW{4} + ItIH_wic_zg_W_cell{3,5}*iiW{5} + ItIH_wic_zg_E_cell{3};
+    ooW{4} = ItIH_wic_zg_W_cell{4,1}*iiW{1} + ItIH_wic_zg_W_cell{4,2}*iiW{2} + ItIH_wic_zg_W_cell{4,3}*iiW{3} + ItIH_wic_zg_W_cell{4,4}*iiW{4} + ItIH_wic_zg_W_cell{4,5}*iiW{5} + ItIH_wic_zg_E_cell{4};
+    ooW{5} = ItIH_wic_zg_W_cell{5,1}*iiW{1} + ItIH_wic_zg_W_cell{5,2}*iiW{2} + ItIH_wic_zg_W_cell{5,3}*iiW{3} + ItIH_wic_zg_W_cell{5,4}*iiW{4} + ItIH_wic_zg_W_cell{5,5}*iiW{5} + ItIH_wic_zg_E_cell{5};
 
-    ooE{1} = SE{1,1}*iiE{1} + SE{1,2}*iiE{2} + SE{1,3}*iiE{3} + SE{1,4}*iiE{4} + SE{1,5}*iiE{5} + cE{1};
-    ooE{2} = SE{2,1}*iiE{1} + SE{2,2}*iiE{2} + SE{2,3}*iiE{3} + SE{2,4}*iiE{4} + SE{2,5}*iiE{5} + cE{2};
-    ooE{3} = SE{3,1}*iiE{1} + SE{3,2}*iiE{2} + SE{3,3}*iiE{3} + SE{3,4}*iiE{4} + SE{3,5}*iiE{5} + cE{3};
-    ooE{4} = SE{4,1}*iiE{1} + SE{4,2}*iiE{2} + SE{4,3}*iiE{3} + SE{4,4}*iiE{4} + SE{4,5}*iiE{5} + cE{4};
-    ooE{5} = SE{5,1}*iiE{1} + SE{5,2}*iiE{2} + SE{5,3}*iiE{3} + SE{5,4}*iiE{4} + SE{5,5}*iiE{5} + cE{5};
+    ooE{1} = ItIP_wic_zg_W_cell{1,1}*iiE{1} + ItIP_wic_zg_W_cell{1,2}*iiE{2} + ItIP_wic_zg_W_cell{1,3}*iiE{3} + ItIP_wic_zg_W_cell{1,4}*iiE{4} + ItIP_wic_zg_W_cell{1,5}*iiE{5} + ItIP_wic_zg_E_cell{1};
+    ooE{2} = ItIP_wic_zg_W_cell{2,1}*iiE{1} + ItIP_wic_zg_W_cell{2,2}*iiE{2} + ItIP_wic_zg_W_cell{2,3}*iiE{3} + ItIP_wic_zg_W_cell{2,4}*iiE{4} + ItIP_wic_zg_W_cell{2,5}*iiE{5} + ItIP_wic_zg_E_cell{2};
+    ooE{3} = ItIP_wic_zg_W_cell{3,1}*iiE{1} + ItIP_wic_zg_W_cell{3,2}*iiE{2} + ItIP_wic_zg_W_cell{3,3}*iiE{3} + ItIP_wic_zg_W_cell{3,4}*iiE{4} + ItIP_wic_zg_W_cell{3,5}*iiE{5} + ItIP_wic_zg_E_cell{3};
+    ooE{4} = ItIP_wic_zg_W_cell{4,1}*iiE{1} + ItIP_wic_zg_W_cell{4,2}*iiE{2} + ItIP_wic_zg_W_cell{4,3}*iiE{3} + ItIP_wic_zg_W_cell{4,4}*iiE{4} + ItIP_wic_zg_W_cell{4,5}*iiE{5} + ItIP_wic_zg_E_cell{4};
+    ooE{5} = ItIP_wic_zg_W_cell{5,1}*iiE{1} + ItIP_wic_zg_W_cell{5,2}*iiE{2} + ItIP_wic_zg_W_cell{5,3}*iiE{3} + ItIP_wic_zg_W_cell{5,4}*iiE{4} + ItIP_wic_zg_W_cell{5,5}*iiE{5} + ItIP_wic_zg_E_cell{5};
 
     ubW{1} = (iiW{1} - ooW{1})/(2i*eta);
     ubW{2} = (iiW{2} - ooW{2})/(2i*eta);
@@ -119,8 +135,8 @@ for div = 5:5
     ubE{3} = (iiE{3} - ooE{3})/(2i*eta);
     ubE{4} = (iiE{4} - ooE{4})/(2i*eta);
 
-    ubW5 = BC{5}(sdW.px(sdW.idx_corners), sdW.py(sdW.idx_corners));
-    ubE5 = BC{5}(sdE.px(sdE.idx_corners), sdE.py(sdE.idx_corners));
+    ubW5 = BC{5}(sW.px(sW.idx_corners), sW.py(sW.idx_corners));
+    ubE5 = BC{5}(sE.px(sE.idx_corners), sE.py(sE.idx_corners));
 
     ubW5([1,3]) = (iiW{5} - ooW{5})/(2i*eta);
     ubE5([2,4]) = (iiE{5} - ooE{5})/(2i*eta);
@@ -131,17 +147,17 @@ for div = 5:5
     ubWv = [ubW{1}; ubW{2}; ubW{3}; ubW{4}; ubW{5}];
     ubEv = [ubE{1}; ubE{2}; ubE{3}; ubE{4}; ubE{5}];
 
-    uW = zeros(size(sdW.rhs));
-    uE = zeros(size(sdE.rhs));
+    uW = zeros(size(sW.rhs));
+    uE = zeros(size(sE.rhs));
 
-    uW(sdW.idx_interior) = sdW.A \ (sdW.rhs(sdW.idx_interior) - sdW.B * ubWv);
-    uE(sdE.idx_interior) = sdE.A \ (sdE.rhs(sdE.idx_interior) - sdE.B * ubEv);
+    uW(sW.idx_interior) = sW.A \ (sW.rhs(sW.idx_interior) - sW.B * ubWv);
+    uE(sE.idx_interior) = sE.A \ (sE.rhs(sE.idx_interior) - sE.B * ubEv);
 
-    uW(sdW.idx_boundary) = ubWv;
-    uE(sdE.idx_boundary) = ubEv;
+    uW(sW.idx_boundary) = ubWv;
+    uE(sE.idx_boundary) = ubEv;
 
-    uexW = u_exact(sdW.px, sdW.py);
-    uexE = u_exact(sdE.px, sdE.py);
+    uexW = u_exact(sW.px, sW.py);
+    uexE = u_exact(sE.px, sE.py);
 
     fprintf("div: %i\n", div);
     fprintf("Rel L2 error = %.15e\n", sqrt(norm(uW-uexW)^2 + norm(uE-uexE)^2) / sqrt(norm(uexW)^2 + norm(uexE)^2));
@@ -151,8 +167,8 @@ for div = 5:5
 
     figure;
     hold on;
-    surf(reshape(sdW.px,nW,nW), reshape(sdW.py,nW,nW), reshape(real(uW),nW,nW));
-    surf(reshape(sdE.px,nE,nE), reshape(sdE.py,nE,nE), reshape(real(uE),nE,nE));
+    surf(reshape(sW.px,nW,nW), reshape(sW.py,nW,nW), reshape(real(uW),nW,nW));
+    surf(reshape(sE.px,nE,nE), reshape(sE.py,nE,nE), reshape(real(uE),nE,nE));
     view(3);
     hold off;
 end
