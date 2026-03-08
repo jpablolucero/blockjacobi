@@ -2,8 +2,8 @@ clear;
 
 k=2;
 
-for div = 3:3
-    calculate(2,div,true,@()DtNTest1(k));
+for div = 1:1
+    calculate(5,div,true,@()DtNTest1(k));
 end
 
 function calculate(div,divP,plot,test)
@@ -27,7 +27,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         k = k + 1;
 
-        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_sem);
+        s{k} = Subdomain(div, rhs, ax, bx, ay, by, 0, c0, poincareSteklovOperator, @get_fem);
 
         if abs(s{k}.ax - Xdom(1)) < tol
             s{k}.setBoundaryCondition(BC{1}(s{k}.px(s{k}.idx(1)), s{k}.py(s{k}.idx(1))), 1);
@@ -62,27 +62,29 @@ nd.calculateReordering(2^div - 1);
 S2 = S(nd.permutation,nd.permutation);
 R2 = R(nd.permutation);
 
-t1 = tic;
-
-m = 1;
-
-S2inv = Multigrid(S2,nd,length(nd.levels),m);
-
-fprintf('Build HPS:\t\t %.6f s\n', toc(t1));
-t1 = tic;
-
-M  = @(r) S2inv.vcycle(r);
-rho = 1 - 1/(2*m + 1)^2;
+% t1 = tic;
+% 
+% m = 1;
+% 
+% S2inv = Multigrid(S2,nd,length(nd.levels),m);
+% 
+% fprintf('Build HPS:\t\t %.6f s\n', toc(t1));
+% t1 = tic;
+% 
+% M  = @(r) S2inv.vcycle(r);
+% rho = 1 - 1/(2*m + 1)^2;
 
 u_skel = zeros(size(S2,1),1);
 
-MR2 = M(R2);
-u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
+u_skel(nd.permutation) = S2\R2;
 
-fprintf('Initial L2-norm of GMRES:       %d\n', norm(M(R2)));
-fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
-
-fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
+% MR2 = M(R2);
+% u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
+% 
+% fprintf('Initial L2-norm of GMRES:       %d\n', norm(M(R2)));
+% fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
+% 
+% fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
 
 % nstart = 1;
 % plot_points_in_nd_permutation_order(s, div, nd, S2(nstart:end,nstart:end),nstart:length(R2));

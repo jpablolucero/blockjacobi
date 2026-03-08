@@ -3,361 +3,165 @@ clear;
 k = 2;
 eta = k;
 [u_exact, rhs, c0, ~, ~, IBC, ~, ~] = DtNTest1(k);
+% [u_exact,rhs,c0,IBC,poincareSteklovOperator] = ItITest1(k);
+poincareSteklovOperator = "ItI";
 
 for div = 5:5
-    sSW = Subdomain(div, rhs, 0.0, 0.5, 0.0, 0.5, 0, c0, "DtN", @get_sem);
-    sSE = Subdomain(div, rhs, 0.5, 1.0, 0.0, 0.5, 0, c0, "DtN", @get_sem);
-    sNW = Subdomain(div, rhs, 0.0, 0.5, 0.5, 1.0, 0, c0, "DtN", @get_sem);
-    sNE = Subdomain(div, rhs, 0.5, 1.0, 0.5, 1.0, 0, c0, "DtN", @get_sem);
+    sSW = Subdomain(div, rhs, 0.0, 0.5, 0.0, 0.5, eta, c0, poincareSteklovOperator, @get_sem);
+    sSE = Subdomain(div, rhs, 0.5, 1.0, 0.0, 0.5, eta, c0, poincareSteklovOperator, @get_sem);
+    sNW = Subdomain(div, rhs, 0.0, 0.5, 0.5, 1.0, eta, c0, poincareSteklovOperator, @get_sem);
+    sNE = Subdomain(div, rhs, 0.5, 1.0, 0.5, 1.0, eta, c0, poincareSteklovOperator, @get_sem);
 
-    HdtNSW = cell2mat(sSW.T);
-    HdtNSE = cell2mat(sSE.T);
-    HdtNNW = cell2mat(sNW.T);
-    HdtNNE = cell2mat(sNE.T);
+    m = 2^div - 1;
+    cBL = 4*m+1; cBR = 4*m+2; cTL = 4*m+3; cTR = 4*m+4;
 
-    MbSW = full(sSW.Mb);
-    MbSE = full(sSE.Mb);
-    MbNW = full(sNW.Mb);
-    MbNE = full(sNE.Mb);
+    % --- mc: mass matrix entry at interior corner (ItI only) ---
 
-    PSW = -(2i * eta) * ((HdtNSW + 1i * eta * MbSW) \ cell2mat(sSW.h));
-    PSE = -(2i * eta) * ((HdtNSE + 1i * eta * MbSE) \ cell2mat(sSE.h));
-    PNW = -(2i * eta) * ((HdtNNW + 1i * eta * MbNW) \ cell2mat(sNW.h));
-    PNE = -(2i * eta) * ((HdtNNE + 1i * eta * MbNE) \ cell2mat(sNE.h));
+    % --- Apply boundary conditions ---
+    sSW.setBoundaryCondition(IBC{1}(sSW.px(sSW.idx_left),   sSW.py(sSW.idx_left)),   1);
+    sSW.setBoundaryCondition(IBC{3}(sSW.px(sSW.idx_bottom), sSW.py(sSW.idx_bottom)), 3);
+    sSW.setBoundaryCondition([0.5*(IBC{1}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL))) + IBC{3}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL))));
+                               0.5* IBC{3}(sSW.px(sSW.idx_boundary(cBR)),sSW.py(sSW.idx_boundary(cBR)));
+                               0.5* IBC{1}(sSW.px(sSW.idx_boundary(cTL)),sSW.py(sSW.idx_boundary(cTL)));
+                               0], 5);
 
-    HSW = MbSW \ (HdtNSW - 1i * eta * MbSW) * ((HdtNSW + 1i * eta * MbSW) \ MbSW);
-    HSE = MbSE \ (HdtNSE - 1i * eta * MbSE) * ((HdtNSE + 1i * eta * MbSE) \ MbSE);
-    HNW = MbNW \ (HdtNNW - 1i * eta * MbNW) * ((HdtNNW + 1i * eta * MbNW) \ MbNW);
-    HNE = MbNE \ (HdtNNE - 1i * eta * MbNE) * ((HdtNNE + 1i * eta * MbNE) \ MbNE);
+    sSE.setBoundaryCondition(IBC{2}(sSE.px(sSE.idx_right),  sSE.py(sSE.idx_right)),  2);
+    sSE.setBoundaryCondition(IBC{3}(sSE.px(sSE.idx_bottom), sSE.py(sSE.idx_bottom)), 3);
+    sSE.setBoundaryCondition([0.5* IBC{3}(sSE.px(sSE.idx_boundary(cBL)),sSE.py(sSE.idx_boundary(cBL)));
+                               0.5*(IBC{2}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))) + IBC{3}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))));
+                               0;
+                               0.5* IBC{2}(sSE.px(sSE.idx_boundary(cTR)),sSE.py(sSE.idx_boundary(cTR)))], 5);
 
-    mSW = sSW.b(1);
-    nSW = 2 * mSW + 3;
-    NSW = sum(sSW.b);
-    ESW = sum(sSW.b(1:4));
+    sNW.setBoundaryCondition(IBC{1}(sNW.px(sNW.idx_left),   sNW.py(sNW.idx_left)),   1);
+    sNW.setBoundaryCondition(IBC{4}(sNW.px(sNW.idx_top),    sNW.py(sNW.idx_top)),    4);
+    sNW.setBoundaryCondition([0.5* IBC{1}(sNW.px(sNW.idx_boundary(cBL)),sNW.py(sNW.idx_boundary(cBL)));
+                               0;
+                               0.5*(IBC{1}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))) + IBC{4}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))));
+                               0.5* IBC{4}(sNW.px(sNW.idx_boundary(cTR)),sNW.py(sNW.idx_boundary(cTR)))], 5);
 
-    r1SW = ESW + 1;
-    r2SW = ESW + 2;
-    r3SW = ESW + 3;
-    r4SW = ESW + 4;
+    sNE.setBoundaryCondition(IBC{2}(sNE.px(sNE.idx_right),  sNE.py(sNE.idx_right)),  2);
+    sNE.setBoundaryCondition(IBC{4}(sNE.px(sNE.idx_top),    sNE.py(sNE.idx_top)),    4);
+    sNE.setBoundaryCondition([0;
+                               0.5* IBC{2}(sNE.px(sNE.idx_boundary(cBR)),sNE.py(sNE.idx_boundary(cBR)));
+                               0.5* IBC{4}(sNE.px(sNE.idx_boundary(cTL)),sNE.py(sNE.idx_boundary(cTL)));
+                               0.5*(IBC{2}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))) + IBC{4}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))))], 5);
 
-    ii0SW = zeros(NSW, 1);
-    BSW = sparse(NSW, nSW);
-    FSW = sparse(nSW, nSW);
-    gSW = zeros(nSW, 1);
+    N = 8*m + 12;
 
-    ii0SW(1:mSW) = IBC{1}(sSW.px(sSW.idx_left), sSW.py(sSW.idx_left));
-    ii0SW(2 * mSW + (1:mSW)) = IBC{3}(sSW.px(sSW.idx_bottom), sSW.py(sSW.idx_bottom));
-    ii0SW(r1SW) = 0.5 * (IBC{1}(sSW.px(sSW.idx_boundary(r1SW)), sSW.py(sSW.idx_boundary(r1SW))) + IBC{3}(sSW.px(sSW.idx_boundary(r1SW)), sSW.py(sSW.idx_boundary(r1SW))));
-    ii0SW(r2SW) = 0.5 * IBC{3}(sSW.px(sSW.idx_boundary(r2SW)), sSW.py(sSW.idx_boundary(r2SW)));
-    ii0SW(r3SW) = 0.5 * IBC{1}(sSW.px(sSW.idx_boundary(r3SW)), sSW.py(sSW.idx_boundary(r3SW)));
-
-    BSW(mSW + (1:mSW), 1:mSW) = speye(mSW);
-    BSW(3 * mSW + (1:mSW), mSW + (1:mSW)) = speye(mSW);
-    BSW(r2SW, 2 * mSW + 1) = 0.5;
-    BSW(r3SW, 2 * mSW + 2) = 0.5;
-    BSW(r4SW, 2 * mSW + 3) = 1.0;
-
-    FSW(2 * mSW + 1, 2 * mSW + 1) = 0.5;
-    FSW(2 * mSW + 2, 2 * mSW + 2) = 0.5;
-    gSW(2 * mSW + 1) = -0.5 * IBC{3}(sSW.px(sSW.idx_boundary(r2SW)), sSW.py(sSW.idx_boundary(r2SW)));
-    gSW(2 * mSW + 2) = -0.5 * IBC{1}(sSW.px(sSW.idx_boundary(r3SW)), sSW.py(sSW.idx_boundary(r3SW)));
-
-    rowsSW = [mSW + (1:mSW), 3 * mSW + (1:mSW), r2SW, r3SW, r4SW];
-
-    LSW.T = HSW(rowsSW, :) * BSW + FSW;
-    LSW.h = HSW(rowsSW, :) * ii0SW + PSW(rowsSW) + gSW;
-    LSW.B = BSW;
-    LSW.ii0 = ii0SW;
-    LSW.n = nSW;
-    LSW.m = mSW;
-    LSW.mc = full(sSW.Mb(rowsSW(end), rowsSW(end)));
-    LSW.iR = 1:mSW;
-    LSW.iT = mSW + (1:mSW);
-    LSW.iBR = 2 * mSW + 1;
-    LSW.iTL = 2 * mSW + 2;
-    LSW.iC = 2 * mSW + 3;
-
-    mSE = sSE.b(1);
-    nSE = 2 * mSE + 3;
-    NSE = sum(sSE.b);
-    ESE = sum(sSE.b(1:4));
-
-    r1SE = ESE + 1;
-    r2SE = ESE + 2;
-    r3SE = ESE + 3;
-    r4SE = ESE + 4;
-
-    ii0SE = zeros(NSE, 1);
-    BSE = sparse(NSE, nSE);
-    FSE = sparse(nSE, nSE);
-    gSE = zeros(nSE, 1);
-
-    ii0SE(mSE + (1:mSE)) = IBC{2}(sSE.px(sSE.idx_right), sSE.py(sSE.idx_right));
-    ii0SE(2 * mSE + (1:mSE)) = IBC{3}(sSE.px(sSE.idx_bottom), sSE.py(sSE.idx_bottom));
-    ii0SE(r1SE) = 0.5 * IBC{3}(sSE.px(sSE.idx_boundary(r1SE)), sSE.py(sSE.idx_boundary(r1SE)));
-    ii0SE(r2SE) = 0.5 * (IBC{2}(sSE.px(sSE.idx_boundary(r2SE)), sSE.py(sSE.idx_boundary(r2SE))) + IBC{3}(sSE.px(sSE.idx_boundary(r2SE)), sSE.py(sSE.idx_boundary(r2SE))));
-    ii0SE(r4SE) = 0.5 * IBC{2}(sSE.px(sSE.idx_boundary(r4SE)), sSE.py(sSE.idx_boundary(r4SE)));
-
-    BSE(1:mSE, 1:mSE) = speye(mSE);
-    BSE(3 * mSE + (1:mSE), mSE + (1:mSE)) = speye(mSE);
-    BSE(r1SE, 2 * mSE + 1) = 0.5;
-    BSE(r4SE, 2 * mSE + 2) = 0.5;
-    BSE(r3SE, 2 * mSE + 3) = 1.0;
-
-    FSE(2 * mSE + 1, 2 * mSE + 1) = 0.5;
-    FSE(2 * mSE + 2, 2 * mSE + 2) = 0.5;
-    gSE(2 * mSE + 1) = -0.5 * IBC{3}(sSE.px(sSE.idx_boundary(r1SE)), sSE.py(sSE.idx_boundary(r1SE)));
-    gSE(2 * mSE + 2) = -0.5 * IBC{2}(sSE.px(sSE.idx_boundary(r4SE)), sSE.py(sSE.idx_boundary(r4SE)));
-
-    rowsSE = [1:mSE, 3 * mSE + (1:mSE), r1SE, r4SE, r3SE];
-
-    LSE.T = HSE(rowsSE, :) * BSE + FSE;
-    LSE.h = HSE(rowsSE, :) * ii0SE + PSE(rowsSE) + gSE;
-    LSE.B = BSE;
-    LSE.ii0 = ii0SE;
-    LSE.n = nSE;
-    LSE.m = mSE;
-    LSE.mc = full(sSE.Mb(rowsSE(end), rowsSE(end)));
-    LSE.iT = mSE + (1:mSE);
-    LSE.iBM = 2 * mSE + 1;
-    LSE.iRM = 2 * mSE + 2;
-    LSE.iC = 2 * mSE + 3;
-
-    mNW = sNW.b(1);
-    nNW = 2 * mNW + 3;
-    NNW = sum(sNW.b);
-    ENW = sum(sNW.b(1:4));
-
-    r1NW = ENW + 1;
-    r2NW = ENW + 2;
-    r3NW = ENW + 3;
-    r4NW = ENW + 4;
-
-    ii0NW = zeros(NNW, 1);
-    BNW = sparse(NNW, nNW);
-    FNW = sparse(nNW, nNW);
-    gNW = zeros(nNW, 1);
-
-    ii0NW(1:mNW) = IBC{1}(sNW.px(sNW.idx_left), sNW.py(sNW.idx_left));
-    ii0NW(3 * mNW + (1:mNW)) = IBC{4}(sNW.px(sNW.idx_top), sNW.py(sNW.idx_top));
-    ii0NW(r1NW) = 0.5 * IBC{1}(sNW.px(sNW.idx_boundary(r1NW)), sNW.py(sNW.idx_boundary(r1NW)));
-    ii0NW(r3NW) = 0.5 * (IBC{1}(sNW.px(sNW.idx_boundary(r3NW)), sNW.py(sNW.idx_boundary(r3NW))) + IBC{4}(sNW.px(sNW.idx_boundary(r3NW)), sNW.py(sNW.idx_boundary(r3NW))));
-    ii0NW(r4NW) = 0.5 * IBC{4}(sNW.px(sNW.idx_boundary(r4NW)), sNW.py(sNW.idx_boundary(r4NW)));
-
-    BNW(mNW + (1:mNW), 1:mNW) = speye(mNW);
-    BNW(2 * mNW + (1:mNW), mNW + (1:mNW)) = speye(mNW);
-    BNW(r1NW, 2 * mNW + 1) = 0.5;
-    BNW(r4NW, 2 * mNW + 2) = 0.5;
-    BNW(r2NW, 2 * mNW + 3) = 1.0;
-
-    FNW(2 * mNW + 1, 2 * mNW + 1) = 0.5;
-    FNW(2 * mNW + 2, 2 * mNW + 2) = 0.5;
-    gNW(2 * mNW + 1) = -0.5 * IBC{1}(sNW.px(sNW.idx_boundary(r1NW)), sNW.py(sNW.idx_boundary(r1NW)));
-    gNW(2 * mNW + 2) = -0.5 * IBC{4}(sNW.px(sNW.idx_boundary(r4NW)), sNW.py(sNW.idx_boundary(r4NW)));
-
-    rowsNW = [mNW + (1:mNW), 2 * mNW + (1:mNW), r1NW, r4NW, r2NW];
-
-    LNW.T = HNW(rowsNW, :) * BNW + FNW;
-    LNW.h = HNW(rowsNW, :) * ii0NW + PNW(rowsNW) + gNW;
-    LNW.B = BNW;
-    LNW.ii0 = ii0NW;
-    LNW.n = nNW;
-    LNW.m = mNW;
-    LNW.mc = full(sNW.Mb(rowsNW(end), rowsNW(end)));
-    LNW.iR = 1:mNW;
-    LNW.iB = mNW + (1:mNW);
-    LNW.iLM = 2 * mNW + 1;
-    LNW.iTM = 2 * mNW + 2;
-    LNW.iC = 2 * mNW + 3;
-
-    mNE = sNE.b(1);
-    nNE = 2 * mNE + 3;
-    NNE = sum(sNE.b);
-    ENE = sum(sNE.b(1:4));
-
-    r1NE = ENE + 1;
-    r2NE = ENE + 2;
-    r3NE = ENE + 3;
-    r4NE = ENE + 4;
-
-    ii0NE = zeros(NNE, 1);
-    BNE = sparse(NNE, nNE);
-    FNE = sparse(nNE, nNE);
-    gNE = zeros(nNE, 1);
-
-    ii0NE(mNE + (1:mNE)) = IBC{2}(sNE.px(sNE.idx_right), sNE.py(sNE.idx_right));
-    ii0NE(3 * mNE + (1:mNE)) = IBC{4}(sNE.px(sNE.idx_top), sNE.py(sNE.idx_top));
-    ii0NE(r2NE) = 0.5 * IBC{2}(sNE.px(sNE.idx_boundary(r2NE)), sNE.py(sNE.idx_boundary(r2NE)));
-    ii0NE(r3NE) = 0.5 * IBC{4}(sNE.px(sNE.idx_boundary(r3NE)), sNE.py(sNE.idx_boundary(r3NE)));
-    ii0NE(r4NE) = 0.5 * (IBC{2}(sNE.px(sNE.idx_boundary(r4NE)), sNE.py(sNE.idx_boundary(r4NE))) + IBC{4}(sNE.px(sNE.idx_boundary(r4NE)), sNE.py(sNE.idx_boundary(r4NE))));
-
-    BNE(1:mNE, 1:mNE) = speye(mNE);
-    BNE(2 * mNE + (1:mNE), mNE + (1:mNE)) = speye(mNE);
-    BNE(r2NE, 2 * mNE + 1) = 0.5;
-    BNE(r3NE, 2 * mNE + 2) = 0.5;
-    BNE(r1NE, 2 * mNE + 3) = 1.0;
-
-    FNE(2 * mNE + 1, 2 * mNE + 1) = 0.5;
-    FNE(2 * mNE + 2, 2 * mNE + 2) = 0.5;
-    gNE(2 * mNE + 1) = -0.5 * IBC{2}(sNE.px(sNE.idx_boundary(r2NE)), sNE.py(sNE.idx_boundary(r2NE)));
-    gNE(2 * mNE + 2) = -0.5 * IBC{4}(sNE.px(sNE.idx_boundary(r3NE)), sNE.py(sNE.idx_boundary(r3NE)));
-
-    rowsNE = [1:mNE, 2 * mNE + (1:mNE), r2NE, r3NE, r1NE];
-
-    LNE.T = HNE(rowsNE, :) * BNE + FNE;
-    LNE.h = HNE(rowsNE, :) * ii0NE + PNE(rowsNE) + gNE;
-    LNE.B = BNE;
-    LNE.ii0 = ii0NE;
-    LNE.n = nNE;
-    LNE.m = mNE;
-    LNE.mc = full(sNE.Mb(rowsNE(end), rowsNE(end)));
-    LNE.iB = mNE + (1:mNE);
-    LNE.iRM = 2 * mNE + 1;
-    LNE.iTM = 2 * mNE + 2;
-    LNE.iC = 2 * mNE + 3;
-
-    eSW_BR = sparse(1, nSW);
-    eSW_BR(LSW.iBR) = 1;
-
-    eSE_BM = sparse(1, nSE);
-    eSE_BM(LSE.iBM) = 1;
-
-    eSW_TL = sparse(1, nSW);
-    eSW_TL(LSW.iTL) = 1;
-
-    eNW_LM = sparse(1, nNW);
-    eNW_LM(LNW.iLM) = 1;
-
-    eNW_TM = sparse(1, nNW);
-    eNW_TM(LNW.iTM) = 1;
-
-    eNE_TM = sparse(1, nNE);
-    eNE_TM(LNE.iTM) = 1;
-
-    eSE_RM = sparse(1, nSE);
-    eSE_RM(LSE.iRM) = 1;
-
-    eNE_RM = sparse(1, nNE);
-    eNE_RM(LNE.iRM) = 1;
-
-    eSW_C = sparse(1, nSW);
-    eSW_C(LSW.iC) = 1;
-
-    eSE_C = sparse(1, nSE);
-    eSE_C(LSE.iC) = 1;
-
-    eNW_C = sparse(1, nNW);
-    eNW_C(LNW.iC) = 1;
-
-    eNE_C = sparse(1, nNE);
-    eNE_C(LNE.iC) = 1;
-
-    ZmSW = sparse(mSW, nSW);
-    ZmSE = sparse(mSW, nSE);
-    ZmNW = sparse(mSW, nNW);
-    ZmNE = sparse(mSW, nNE);
-
-    Z1SW = sparse(1, nSW);
-    Z1SE = sparse(1, nSE);
-    Z1NW = sparse(1, nNW);
-    Z1NE = sparse(1, nNE);
-
-    ISW_R = ZmSW;
-    ISW_R(:, LSW.iR) = speye(mSW);
-
-    ISE_L = ZmSE;
-    ISE_L(:, 1:mSE) = speye(mSE);
-
-    INW_R = ZmNW;
-    INW_R(:, LNW.iR) = speye(mNW);
-
-    INE_L = ZmNE;
-    INE_L(:, 1:mNE) = speye(mNE);
-
-    ISW_T = ZmSW;
-    ISW_T(:, LSW.iT) = speye(mSW);
-
-    INW_B = ZmNW;
-    INW_B(:, LNW.iB) = speye(mNW);
-
-    ISE_T = ZmSE;
-    ISE_T(:, LSE.iT) = speye(mSE);
-
-    INE_B = ZmNE;
-    INE_B(:, LNE.iB) = speye(mNE);
-
+    % --- Global assembly ---
+    % Columns: e1SW e1SE e2NW e2NE e3SW e3NW e4SE e4NE | BM_SW BM_SE TM_NW TM_NE LM_SW LM_NW IC_SW IC_SE IC_NW IC_NE RM_SE RM_NE
     A = [
-        ISW_R,                               LSE.T(1:mSW,:),                        ZmNW,                                 ZmNE;
-        LSW.T(LSW.iR,:),                     ISE_L,                                 ZmNW,                                 ZmNE;
-        ZmSW,                                ZmSE,                                  INW_R,                                LNE.T(1:mNW,:);
-        ZmSW,                                ZmSE,                                  LNW.T(LNW.iR,:),                      INE_L;
-        ISW_T,                               ZmSE,                                  LNW.T(LNW.iB,:),                      ZmNE;
-        LSW.T(LSW.iT,:),                     ZmSE,                                  INW_B,                                ZmNE;
-        ZmSW,                                ISE_T,                                 ZmNW,                                 LNE.T(LNE.iB,:);
-        ZmSW,                                LSE.T(LSE.iT,:),                       ZmNW,                                 INE_B;
-        eSW_BR,                              LSE.T(LSE.iBM,:),                      Z1NW,                                 Z1NE;
-        LSW.T(LSW.iBR,:),                    eSE_BM,                                Z1NW,                                 Z1NE;
-        eSW_TL,                              Z1SE,                                  LNW.T(LNW.iLM,:),                     Z1NE;
-        LSW.T(LSW.iTL,:),                    Z1SE,                                  eNW_LM,                               Z1NE;
-        Z1SW,                                Z1SE,                                  eNW_TM,                               LNE.T(LNE.iTM,:);
-        Z1SW,                                Z1SE,                                  LNW.T(LNW.iTM,:),                     eNE_TM;
-        Z1SW,                                eSE_RM,                                Z1NW,                                 LNE.T(LNE.iRM,:);
-        Z1SW,                                LSE.T(LSE.iRM,:),                      Z1NW,                                 eNE_RM;
-        (eSW_C - LSW.T(LSW.iC,:)) / LSW.mc,  (-eSE_C + LSE.T(LSE.iC,:)) / LSE.mc,   Z1NW,                                 Z1NE;
-        (eSW_C - LSW.T(LSW.iC,:)) / LSW.mc,  Z1SE,                                  (-eNW_C + LNW.T(LNW.iC,:)) / LNW.mc, Z1NE;
-        (eSW_C - LSW.T(LSW.iC,:)) / LSW.mc,  Z1SE,                                  Z1NW,                                 (-eNE_C + LNE.T(LNE.iC,:)) / LNE.mc;
-        eSW_C + LSW.T(LSW.iC,:),             eSE_C + LSE.T(LSE.iC,:),               eNW_C + LNW.T(LNW.iC,:),              eNE_C + LNE.T(LNE.iC,:)
+        speye(m),         sSE.T{1,1},        sparse(m,m),      sparse(m,m),      sparse(m,m),      sparse(m,m),      sSE.T{1,4},        sparse(m,m),      sparse(m,1), 0.5*sSE.T{1,5}(:,1), sparse(m,1), sparse(m,1), sparse(m,1),          sparse(m,1), sparse(m,1), sSE.T{1,5}(:,3),   sparse(m,1), sparse(m,1), 0.5*sSE.T{1,5}(:,4), sparse(m,1);
+        sSW.T{2,2},       speye(m),           sparse(m,m),      sparse(m,m),      sSW.T{2,4},       sparse(m,m),      sparse(m,m),       sparse(m,m),      0.5*sSW.T{2,5}(:,2), sparse(m,1), sparse(m,1), sparse(m,1), 0.5*sSW.T{2,5}(:,3), sparse(m,1), sSW.T{2,5}(:,4),   sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1),          sparse(m,1);
+        sparse(m,m),      sparse(m,m),        speye(m),         sNE.T{1,1},       sparse(m,m),      sparse(m,m),      sparse(m,m),       sNE.T{1,3},       sparse(m,1), sparse(m,1),          sparse(m,1), 0.5*sNE.T{1,5}(:,3), sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1), sNE.T{1,5}(:,1),   sparse(m,1),          0.5*sNE.T{1,5}(:,2);
+        sparse(m,m),      sparse(m,m),        sNW.T{2,2},       speye(m),         sparse(m,m),      sNW.T{2,3},       sparse(m,m),       sparse(m,m),      sparse(m,1), sparse(m,1),          0.5*sNW.T{2,5}(:,4), sparse(m,1), sparse(m,1), 0.5*sNW.T{2,5}(:,1), sparse(m,1), sparse(m,1), sNW.T{2,5}(:,2), sparse(m,1), sparse(m,1), sparse(m,1);
+        sparse(m,m),      sparse(m,m),        sNW.T{3,2},       sparse(m,m),      speye(m),         sNW.T{3,3},       sparse(m,m),       sparse(m,m),      sparse(m,1), sparse(m,1),          0.5*sNW.T{3,5}(:,4), sparse(m,1), sparse(m,1), 0.5*sNW.T{3,5}(:,1), sparse(m,1), sparse(m,1), sNW.T{3,5}(:,2), sparse(m,1), sparse(m,1), sparse(m,1);
+        sSW.T{4,2},       sparse(m,m),        sparse(m,m),      sparse(m,m),      sSW.T{4,4},       speye(m),         sparse(m,m),       sparse(m,m),      0.5*sSW.T{4,5}(:,2), sparse(m,1), sparse(m,1), sparse(m,1), 0.5*sSW.T{4,5}(:,3), sparse(m,1), sSW.T{4,5}(:,4),   sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1),          sparse(m,1);
+        sparse(m,m),      sparse(m,m),        sparse(m,m),      sNE.T{3,1},       sparse(m,m),      sparse(m,m),      speye(m),          sNE.T{3,3},       sparse(m,1), sparse(m,1),          sparse(m,1), 0.5*sNE.T{3,5}(:,3), sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1), sparse(m,1), sNE.T{3,5}(:,1),   sparse(m,1),          0.5*sNE.T{3,5}(:,2);
+        sparse(m,m),      sSE.T{4,1},         sparse(m,m),      sparse(m,m),      sparse(m,m),      sparse(m,m),      sSE.T{4,4},        speye(m),         sparse(m,1), 0.5*sSE.T{4,5}(:,1), sparse(m,1), sparse(m,1), sparse(m,1),          sparse(m,1), sparse(m,1), sSE.T{4,5}(:,3),   sparse(m,1), sparse(m,1), 0.5*sSE.T{4,5}(:,4), sparse(m,1);
+        sparse(1,m),      sSE.T{5,1}(1,:),    sparse(1,m),      sparse(1,m),      sparse(1,m),      sparse(1,m),      sSE.T{5,4}(1,:),   sparse(1,m),      1,           0.5*sSE.T{5,5}(1,1)+0.5, 0,       0,           0,                   0,           0,           sSE.T{5,5}(1,3),   0,           0,           0.5*sSE.T{5,5}(1,4), 0;
+        sSW.T{5,2}(2,:),  sparse(1,m),        sparse(1,m),      sparse(1,m),      sSW.T{5,4}(2,:),  sparse(1,m),      sparse(1,m),       sparse(1,m),      0.5*sSW.T{5,5}(2,2)+0.5, 1,        0,       0,           0.5*sSW.T{5,5}(2,3), 0,           sSW.T{5,5}(2,4),   0,           0,           0,           0,                   0;
+        sparse(1,m),      sparse(1,m),        sNW.T{5,2}(1,:),  sparse(1,m),      sparse(1,m),      sNW.T{5,3}(1,:),  sparse(1,m),       sparse(1,m),      0,           0,                   0.5*sNW.T{5,5}(1,4), 0, 1,                   0.5*sNW.T{5,5}(1,1)+0.5, 0, 0,           sNW.T{5,5}(1,2), 0,           0,                   0;
+        sSW.T{5,2}(3,:),  sparse(1,m),        sparse(1,m),      sparse(1,m),      sSW.T{5,4}(3,:),  sparse(1,m),      sparse(1,m),       sparse(1,m),      0.5*sSW.T{5,5}(3,2), 0,          0,       0,           0.5*sSW.T{5,5}(3,3)+0.5, 1,         sSW.T{5,5}(3,4),   0,           0,           0,           0,                   0;
+        sparse(1,m),      sparse(1,m),        sparse(1,m),      sNE.T{5,1}(3,:),  sparse(1,m),      sparse(1,m),      sparse(1,m),       sNE.T{5,3}(3,:),  0,           0,                   1,       0.5*sNE.T{5,5}(3,3)+0.5, 0,           0,           0,           0,           0,           sNE.T{5,5}(3,1), 0,                   0.5*sNE.T{5,5}(3,2);
+        sparse(1,m),      sparse(1,m),        sNW.T{5,2}(4,:),  sparse(1,m),      sparse(1,m),      sNW.T{5,3}(4,:),  sparse(1,m),       sparse(1,m),      0,           0,                   0.5*sNW.T{5,5}(4,4)+0.5, 1, 0,                   0.5*sNW.T{5,5}(4,1), 0, 0,           sNW.T{5,5}(4,2), 0,           0,                   0;
+        sparse(1,m),      sparse(1,m),        sparse(1,m),      sNE.T{5,1}(2,:),  sparse(1,m),      sparse(1,m),      sparse(1,m),       sNE.T{5,3}(2,:),  0,           0,                   0,       0.5*sNE.T{5,5}(2,3), 0,           0,           0,           0,           0,           sNE.T{5,5}(2,1), 1,                   0.5*sNE.T{5,5}(2,2)+0.5;
+        sparse(1,m),      sSE.T{5,1}(4,:),    sparse(1,m),      sparse(1,m),      sparse(1,m),      sparse(1,m),      sSE.T{5,4}(4,:),   sparse(1,m),      0,           0.5*sSE.T{5,5}(4,1), 0,       0,           0,                   0,           0,           sSE.T{5,5}(4,3),   0,           0,           0.5*sSE.T{5,5}(4,4)+0.5, 1;
+        -sSW.T{5,2}(4,:)/sSW.Mb(cTR,cTR),  sSE.T{5,1}(3,:)/sSE.Mb(cTL,cTL),  sparse(1,m),            sparse(1,m),            -sSW.T{5,4}(4,:)/sSW.Mb(cTR,cTR),  sparse(1,m),            sSE.T{5,4}(3,:)/sSE.Mb(cTL,cTL),  sparse(1,m),            -0.5*sSW.T{5,5}(4,2)/sSW.Mb(cTR,cTR),  0.5*sSE.T{5,5}(3,1)/sSE.Mb(cTL,cTL),  0,                        0,                         -0.5*sSW.T{5,5}(4,3)/sSW.Mb(cTR,cTR),  0,                        (1-sSW.T{5,5}(4,4))/sSW.Mb(cTR,cTR),  (-1+sSE.T{5,5}(3,3))/sSE.Mb(cTL,cTL),  0,                         0,                        0.5*sSE.T{5,5}(3,4)/sSE.Mb(cTL,cTL),   0;
+        -sSW.T{5,2}(4,:)/sSW.Mb(cTR,cTR),  sparse(1,m),            sNW.T{5,2}(2,:)/sNW.Mb(cBR,cBR),   sparse(1,m),            -sSW.T{5,4}(4,:)/sSW.Mb(cTR,cTR),  sNW.T{5,3}(2,:)/sNW.Mb(cBR,cBR),   sparse(1,m),            sparse(1,m),            -0.5*sSW.T{5,5}(4,2)/sSW.Mb(cTR,cTR),  0,                          0.5*sNW.T{5,5}(2,4)/sNW.Mb(cBR,cBR),  0,                         -0.5*sSW.T{5,5}(4,3)/sSW.Mb(cTR,cTR),  0.5*sNW.T{5,5}(2,1)/sNW.Mb(cBR,cBR),  (1-sSW.T{5,5}(4,4))/sSW.Mb(cTR,cTR),  0,                           (-1+sNW.T{5,5}(2,2))/sNW.Mb(cBR,cBR),  0,                        0,                           0;
+        -sSW.T{5,2}(4,:)/sSW.Mb(cTR,cTR),  sparse(1,m),            sparse(1,m),            sNE.T{5,1}(1,:)/sNE.Mb(cBL,cBL),   -sSW.T{5,4}(4,:)/sSW.Mb(cTR,cTR),  sparse(1,m),            sparse(1,m),            sNE.T{5,3}(1,:)/sNE.Mb(cBL,cBL),   -0.5*sSW.T{5,5}(4,2)/sSW.Mb(cTR,cTR),  0,                          0,                          0.5*sNE.T{5,5}(1,3)/sNE.Mb(cBL,cBL),  -0.5*sSW.T{5,5}(4,3)/sSW.Mb(cTR,cTR),  0,                        (1-sSW.T{5,5}(4,4))/sSW.Mb(cTR,cTR),  0,                           0,                           (-1+sNE.T{5,5}(1,1))/sNE.Mb(cBL,cBL),  0,                           0.5*sNE.T{5,5}(1,2)/sNE.Mb(cBL,cBL);
+        sSW.T{5,2}(4,:),        sSE.T{5,1}(3,:),        sNW.T{5,2}(2,:),        sNE.T{5,1}(1,:),        sSW.T{5,4}(4,:),        sNW.T{5,3}(2,:),        sSE.T{5,4}(3,:),       sNE.T{5,3}(1,:),        0.5*sSW.T{5,5}(4,2),         0.5*sSE.T{5,5}(3,1),        0.5*sNW.T{5,5}(2,4),       0.5*sNE.T{5,5}(1,3),       0.5*sSW.T{5,5}(4,3),         0.5*sNW.T{5,5}(2,1),      1+sSW.T{5,5}(4,4),          1+sSE.T{5,5}(3,3),           1+sNW.T{5,5}(2,2),           1+sNE.T{5,5}(1,1),          0.5*sSE.T{5,5}(3,4),         0.5*sNE.T{5,5}(1,2)
     ];
 
     b = [
-        -LSE.h(1:mSW);
-        -LSW.h(LSW.iR);
-        -LNE.h(1:mNW);
-        -LNW.h(LNW.iR);
-        -LNW.h(LNW.iB);
-        -LSW.h(LSW.iT);
-        -LNE.h(LNE.iB);
-        -LSE.h(LSE.iT);
-        -LSE.h(LSE.iBM);
-        -LSW.h(LSW.iBR);
-        -LNW.h(LNW.iLM);
-        -LSW.h(LSW.iTL);
-        -LNE.h(LNE.iTM);
-        -LNW.h(LNW.iTM);
-        -LNE.h(LNE.iRM);
-        -LSE.h(LSE.iRM);
-        LSW.h(LSW.iC) / LSW.mc - LSE.h(LSE.iC) / LSE.mc;
-        LSW.h(LSW.iC) / LSW.mc - LNW.h(LNW.iC) / LNW.mc;
-        LSW.h(LSW.iC) / LSW.mc - LNE.h(LNE.iC) / LNE.mc;
-        -(LSW.h(LSW.iC) + LSE.h(LSE.iC) + LNW.h(LNW.iC) + LNE.h(LNE.iC))
+        -sSE.h{1};
+        -sSW.h{2};
+        -sNE.h{1};
+        -sNW.h{2};
+        -sNW.h{3};
+        -sSW.h{4};
+        -sNE.h{3};
+        -sSE.h{4};
+        -(sSE.h{5}(1) - 0.5* IBC{3}(sSE.px(sSE.idx_boundary(cBL)),sSE.py(sSE.idx_boundary(cBL))));
+        -(sSW.h{5}(2) - 0.5* IBC{3}(sSW.px(sSW.idx_boundary(cBR)),sSW.py(sSW.idx_boundary(cBR))));
+        -(sNW.h{5}(1) - 0.5* IBC{1}(sNW.px(sNW.idx_boundary(cBL)),sNW.py(sNW.idx_boundary(cBL))));
+        -(sSW.h{5}(3) - 0.5* IBC{1}(sSW.px(sSW.idx_boundary(cTL)),sSW.py(sSW.idx_boundary(cTL))));
+        -(sNE.h{5}(3) - 0.5* IBC{4}(sNE.px(sNE.idx_boundary(cTL)),sNE.py(sNE.idx_boundary(cTL))));
+        -(sNW.h{5}(4) - 0.5* IBC{4}(sNW.px(sNW.idx_boundary(cTR)),sNW.py(sNW.idx_boundary(cTR))));
+        -(sNE.h{5}(2) - 0.5* IBC{2}(sNE.px(sNE.idx_boundary(cBR)),sNE.py(sNE.idx_boundary(cBR))));
+        -(sSE.h{5}(4) - 0.5* IBC{2}(sSE.px(sSE.idx_boundary(cTR)),sSE.py(sSE.idx_boundary(cTR))));
+        sSW.h{5}(4) / sSW.Mb(cTR,cTR) - sSE.h{5}(3) / sSE.Mb(cTL,cTL);
+        sSW.h{5}(4) / sSW.Mb(cTR,cTR) - sNW.h{5}(2) / sNW.Mb(cBR,cBR);
+        sSW.h{5}(4) / sSW.Mb(cTR,cTR) - sNE.h{5}(1) / sNE.Mb(cBL,cBL);
+        -(sSW.h{5}(4) + sSE.h{5}(3) + sNW.h{5}(2) + sNE.h{5}(1))
     ];
 
     x = A \ b;
 
-    I_SW = 1:nSW;
-    I_SE = nSW + (1:nSE);
-    I_NW = nSW + nSE + (1:nNW);
-    I_NE = nSW + nSE + nNW + (1:nNE);
+    ooSW = cell2mat(sSW.T) * [zeros(m,1); 
+        x(1:m);
+        zeros(m,1);
+        x(4*m+1:5*m); 
+        0;             
+        0.5*x(8*m+1);  
+        0.5*x(8*m+5); 
+        x(8*m+7)       ] + cell2mat(sSW.h);
+    ooSE = cell2mat(sSE.T) * [x(m+1:2*m); 
+        zeros(m,1);   
+        zeros(m,1); 
+        x(6*m+1:7*m); 
+        0.5*x(8*m+2); 
+        0;           
+        x(8*m+8);    
+        0.5*x(8*m+11)  ] + cell2mat(sSE.h);
+    ooNW = cell2mat(sNW.T) * [zeros(m,1); 
+        x(2*m+1:3*m);
+        x(5*m+1:6*m);
+        zeros(m,1); 
+        0.5*x(8*m+6); 
+        x(8*m+9);   
+        0;           
+        0.5*x(8*m+3)   ] + cell2mat(sNW.h);
+    ooNE = cell2mat(sNE.T) * [x(3*m+1:4*m);
+        zeros(m,1); 
+        x(7*m+1:8*m);
+        zeros(m,1);
+        x(8*m+10);    
+        0.5*x(8*m+12);
+        0.5*x(8*m+4); 
+        0             ] + cell2mat(sNE.h);
 
-    xSW = x(I_SW);
-    xSE = x(I_SE);
-    xNW = x(I_NW);
-    xNE = x(I_NE);
-
-    iiSW = LSW.ii0 + LSW.B * xSW;
-    iiSE = LSE.ii0 + LSE.B * xSE;
-    iiNW = LNW.ii0 + LNW.B * xNW;
-    iiNE = LNE.ii0 + LNE.B * xNE;
-
-    ooSW = HSW * iiSW + PSW;
-    ooSE = HSE * iiSE + PSE;
-    ooNW = HNW * iiNW + PNW;
-    ooNE = HNE * iiNE + PNE;
-
-    ubSW = (iiSW - ooSW) / (2i * eta);
-    ubSE = (iiSE - ooSE) / (2i * eta);
-    ubNW = (iiNW - ooNW) / (2i * eta);
-    ubNE = (iiNE - ooNE) / (2i * eta);
+    ubSW = ([IBC{1}(sSW.px(sSW.idx_left),sSW.py(sSW.idx_left)); ...
+        x(1:m); ...
+        IBC{3}(sSW.px(sSW.idx_bottom),sSW.py(sSW.idx_bottom)); ...
+        x(4*m+1:5*m); ...
+        0.5*(IBC{1}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL)))+IBC{3}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL)))); ...
+        0.5*IBC{3}(sSW.px(sSW.idx_boundary(cBR)),sSW.py(sSW.idx_boundary(cBR)))+0.5*x(8*m+1); ...
+        0.5*IBC{1}(sSW.px(sSW.idx_boundary(cTL)),sSW.py(sSW.idx_boundary(cTL)))+0.5*x(8*m+5); ...
+        x(8*m+7)] - ooSW) / (2i * eta);
+    ubSE = ([x(m+1:2*m); ...
+        IBC{2}(sSE.px(sSE.idx_right),sSE.py(sSE.idx_right)); ...
+        IBC{3}(sSE.px(sSE.idx_bottom),sSE.py(sSE.idx_bottom)); ...
+        x(6*m+1:7*m); ...
+        0.5*IBC{3}(sSE.px(sSE.idx_boundary(cBL)),sSE.py(sSE.idx_boundary(cBL)))+0.5*x(8*m+2); ...
+        0.5*(IBC{2}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR)))+IBC{3}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR)))); ...
+        x(8*m+8); ...
+        0.5*IBC{2}(sSE.px(sSE.idx_boundary(cTR)),sSE.py(sSE.idx_boundary(cTR)))+0.5*x(8*m+11)] - ooSE) / (2i * eta);
+    ubNW = ([IBC{1}(sNW.px(sNW.idx_left),sNW.py(sNW.idx_left)); ...
+        x(2*m+1:3*m); ...
+        x(5*m+1:6*m); ...
+        IBC{4}(sNW.px(sNW.idx_top),sNW.py(sNW.idx_top)); ...
+        0.5*IBC{1}(sNW.px(sNW.idx_boundary(cBL)),sNW.py(sNW.idx_boundary(cBL)))+0.5*x(8*m+6); ...
+        x(8*m+9); ...
+        0.5*(IBC{1}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL)))+IBC{4}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL)))); ...
+        0.5*IBC{4}(sNW.px(sNW.idx_boundary(cTR)),sNW.py(sNW.idx_boundary(cTR)))+0.5*x(8*m+3)] - ooNW) / (2i * eta);
+    ubNE = ([x(3*m+1:4*m); ...
+        IBC{2}(sNE.px(sNE.idx_right),sNE.py(sNE.idx_right)); ...
+        x(7*m+1:8*m); IBC{4}(sNE.px(sNE.idx_top),sNE.py(sNE.idx_top)); ...
+        x(8*m+10); ...
+        0.5*IBC{2}(sNE.px(sNE.idx_boundary(cBR)),sNE.py(sNE.idx_boundary(cBR)))+0.5*x(8*m+12); ...
+        0.5*IBC{4}(sNE.px(sNE.idx_boundary(cTL)),sNE.py(sNE.idx_boundary(cTL)))+0.5*x(8*m+4); ...
+        0.5*(IBC{2}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR)))+IBC{4}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))))] - ooNE) / (2i * eta);
 
     uSW = zeros(size(sSW.rhs));
     uSE = zeros(size(sSE.rhs));
