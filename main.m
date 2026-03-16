@@ -62,29 +62,29 @@ nd.calculateReordering(2^div - 1);
 S2 = S(nd.permutation,nd.permutation);
 R2 = R(nd.permutation);
 
-% t1 = tic;
-% 
-% m = 1;
-% 
-% S2inv = Multigrid(S2,nd,length(nd.levels),m);
-% 
-% fprintf('Build HPS:\t\t %.6f s\n', toc(t1));
-% t1 = tic;
-% 
-% M  = @(r) S2inv.vcycle(r);
-% rho = 1 - 1/(2*m + 1)^2;
+t1 = tic;
+
+m = 1;
+
+S2inv = Multigrid(S2,nd,length(nd.levels),m);
+
+fprintf('Build HPS:\t\t %.6f s\n', toc(t1));
+t1 = tic;
+
+M  = @(r) S2inv.vcycle(r);
+rho = 1 - 1/(2*m + 1)^2;
 
 u_skel = zeros(size(S2,1),1);
 
-u_skel(nd.permutation) = S2\R2;
+% u_skel(nd.permutation) = S2\R2;
 
-% MR2 = M(R2);
-% u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
-% 
-% fprintf('Initial L2-norm of GMRES:       %d\n', norm(M(R2)));
-% fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
-% 
-% fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
+MR2 = M(R2);
+u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
+
+fprintf('Initial L2-norm of GMRES:       %d\n', norm(M(R2)));
+fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
+
+fprintf('Solve HPS:\t\t %.6f s\n', toc(t1));
 
 % nstart = 1;
 % plot_points_in_nd_permutation_order(s, div, nd, S2(nstart:end,nstart:end),nstart:length(R2));
