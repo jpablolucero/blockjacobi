@@ -21,34 +21,34 @@ for div = 5:5
     sSW.setBoundaryCondition(IBC{1}(sSW.px(sSW.idx_left),   sSW.py(sSW.idx_left)),   1);
     sSW.setBoundaryCondition(IBC{3}(sSW.px(sSW.idx_bottom), sSW.py(sSW.idx_bottom)), 3);
     sSW.setBoundaryCondition([0.5*(IBC{1}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL))) + IBC{3}(sSW.px(sSW.idx_boundary(cBL)),sSW.py(sSW.idx_boundary(cBL))));
-                               0.5* IBC{3}(sSW.px(sSW.idx_boundary(cBR)),sSW.py(sSW.idx_boundary(cBR)));
-                               0.5* IBC{1}(sSW.px(sSW.idx_boundary(cTL)),sSW.py(sSW.idx_boundary(cTL)));
-                               0], 5);
+                              0.5* IBC{3}(sSW.px(sSW.idx_boundary(cBR)),sSW.py(sSW.idx_boundary(cBR)));
+                              0.5* IBC{1}(sSW.px(sSW.idx_boundary(cTL)),sSW.py(sSW.idx_boundary(cTL)));
+                              0], 5);
 
     sSE.setBoundaryCondition(IBC{2}(sSE.px(sSE.idx_right),  sSE.py(sSE.idx_right)),  2);
     sSE.setBoundaryCondition(IBC{3}(sSE.px(sSE.idx_bottom), sSE.py(sSE.idx_bottom)), 3);
     sSE.setBoundaryCondition([0.5* IBC{3}(sSE.px(sSE.idx_boundary(cBL)),sSE.py(sSE.idx_boundary(cBL)));
-                               0.5*(IBC{2}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))) + IBC{3}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))));
-                               0;
-                               0.5* IBC{2}(sSE.px(sSE.idx_boundary(cTR)),sSE.py(sSE.idx_boundary(cTR)))], 5);
+                              0.5*(IBC{2}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))) + IBC{3}(sSE.px(sSE.idx_boundary(cBR)),sSE.py(sSE.idx_boundary(cBR))));
+                              0;
+                              0.5* IBC{2}(sSE.px(sSE.idx_boundary(cTR)),sSE.py(sSE.idx_boundary(cTR)))], 5);
 
     sNW.setBoundaryCondition(IBC{1}(sNW.px(sNW.idx_left),   sNW.py(sNW.idx_left)),   1);
     sNW.setBoundaryCondition(IBC{4}(sNW.px(sNW.idx_top),    sNW.py(sNW.idx_top)),    4);
     sNW.setBoundaryCondition([0.5* IBC{1}(sNW.px(sNW.idx_boundary(cBL)),sNW.py(sNW.idx_boundary(cBL)));
-                               0;
-                               0.5*(IBC{1}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))) + IBC{4}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))));
-                               0.5* IBC{4}(sNW.px(sNW.idx_boundary(cTR)),sNW.py(sNW.idx_boundary(cTR)))], 5);
+                              0;
+                              0.5*(IBC{1}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))) + IBC{4}(sNW.px(sNW.idx_boundary(cTL)),sNW.py(sNW.idx_boundary(cTL))));
+                              0.5* IBC{4}(sNW.px(sNW.idx_boundary(cTR)),sNW.py(sNW.idx_boundary(cTR)))], 5);
 
     sNE.setBoundaryCondition(IBC{2}(sNE.px(sNE.idx_right),  sNE.py(sNE.idx_right)),  2);
     sNE.setBoundaryCondition(IBC{4}(sNE.px(sNE.idx_top),    sNE.py(sNE.idx_top)),    4);
     sNE.setBoundaryCondition([0;
-                               0.5* IBC{2}(sNE.px(sNE.idx_boundary(cBR)),sNE.py(sNE.idx_boundary(cBR)));
-                               0.5* IBC{4}(sNE.px(sNE.idx_boundary(cTL)),sNE.py(sNE.idx_boundary(cTL)));
-                               0.5*(IBC{2}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))) + IBC{4}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))))], 5);
+                              0.5* IBC{2}(sNE.px(sNE.idx_boundary(cBR)),sNE.py(sNE.idx_boundary(cBR)));
+                              0.5* IBC{4}(sNE.px(sNE.idx_boundary(cTL)),sNE.py(sNE.idx_boundary(cTL)));
+                              0.5*(IBC{2}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))) + IBC{4}(sNE.px(sNE.idx_boundary(cTR)),sNE.py(sNE.idx_boundary(cTR))))], 5);
 
     N = 8*m + 12;
 
-    A = [ %                 1                                   2                                  3                                   4                               5                                    6                                   7                                  8                                     9                                     10                                      11                                      12                                       13                                           14                                    15                                   16                                         17                                       18                                     19                                      20                                          
+    A = [ 
           sSW.T{2,2}                        ,  sSW.T{2,4}                       ,  speye(m)                        ,  sparse(m,m)                      ,  sparse(m,m)                     , sparse(m,m)                      ,  sparse(m,m)                     ,  sparse(m,m)                      ,  0.5*sSW.T{2,5}(:,2)                 ,  0.5*sSW.T{2,5}(:,3)                   ,  sSW.T{2,5}(:,4)                      ,  sparse(m,1)                         ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                         ;
           sSW.T{4,2}                        ,  sSW.T{4,4}                       ,  sparse(m,m)                     ,  sparse(m,m)                      ,  sparse(m,m)                     , speye(m)                         ,  sparse(m,m)                     ,  sparse(m,m)                      ,  0.5*sSW.T{4,5}(:,2)                 ,  0.5*sSW.T{4,5}(:,3)                   ,  sSW.T{4,5}(:,4)                      ,  sparse(m,1)                         ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                         ;
           speye(m)                          ,  sparse(m,m)                      ,  sSE.T{1,1}                      ,  sSE.T{1,4}                       ,  sparse(m,m)                     , sparse(m,m)                      ,  sparse(m,m)                     ,  sparse(m,m)                      ,  sparse(m,1)                         ,  sparse(m,1)                           ,  sparse(m,1)                          ,  0.5*sSE.T{1,5}(:,1)                 ,  sSE.T{1,5}(:,3)                       ,  0.5*sSE.T{1,5}(:,4)                  ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                           ,  sparse(m,1)                          ,  sparse(m,1)                         ;
