@@ -1,14 +1,14 @@
 clear;
 
-k = 4;
+k = 8;
 
-poincareSteklovOperator = "DtN";   % "DtN" or "ItI"
+poincareSteklovOperator = "ItI"; 
 
 for div = 2:2
-    calculate(5, div, true, @()ItITest2(k), poincareSteklovOperator, k);
+    calculate(2, div, true, @()test4(k), poincareSteklovOperator, k);
 end
 
-function calculate(div, divP, doPlot, test, poincareSteklovOperator, k)
+function calculate(div, divP, plot, test, poincareSteklovOperator, k)
 
 [u_ref,rhs,c0,BC,IBC] = test();
 
@@ -90,6 +90,8 @@ if poincareSteklovOperator == "DtN"
     S2 = S(nd.permutation, nd.permutation);
     R2 = R(nd.permutation);
 
+    plot_points_in_nd_permutation_order(s, div, nd, S2);
+
     m = 1;
     S2inv = Multigrid(S2, nd, length(nd.levels), m);
 
@@ -100,11 +102,17 @@ if poincareSteklovOperator == "DtN"
     MR2 = M(R2);
     u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
-    fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
+    fprintf('Residual norm of skeleton solve: %e\n', norm(R2 - S2*u_skel(nd.permutation)));
 
     [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
 else
+    nd = NestedDissectionItI(divP);
+    nd.divide(0);
+    nd.calculateReordering(2^div - 1);
+
     [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom);
+
+    plot_points_in_nd_permutation_order(s, div, nd, S);
 
     u_skel = S \ R;
 
@@ -124,9 +132,16 @@ fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_glob
 fprintf("Rel L2 error u_global vs u_ref:     %.5e\n", norm(u_global - u_ref_global) / norm(u_ref_global));
 
 % ================================================================
+%  Compare with monolithic FEM
+% ================================================================
+[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
+                              2^(divP+div), 2^(divP+div), BC);
+fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+
+% ================================================================
 %  Plot
 % ================================================================
-if doPlot
+if plot
     rowsA = N * 2^div + 1;
     X = reshape(pxG, rowsA, rowsA);
     Y = reshape(pyG, rowsA, rowsA);
@@ -136,11 +151,66 @@ if doPlot
     view(3);
 end
 
-% ================================================================
-%  Compare with monolithic FEM
-% ================================================================
-[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
-                              2^(divP+div), 2^(divP+div), BC);
-fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+end
 
+function plot_points_in_nd_permutation_order(s, div, nd, S2, varargin)
+b = 2^div - 1;
+m = size(nd.elementsPerFace, 1) * b;
+ncp = max(nd.crossPointsPerElement(:));
+n = m + ncp;
+
+x = nan(n, 1);
+y = nan(n, 1);
+
+for e = 1:numel(s)
+    for f = 1:4
+        k = nd.facePerElement(e, f);
+        if k ~= 0
+            ids = (k - 1) * b + (1:b);
+            ii = s{e}.idx(f);
+            t = isnan(x(ids));
+            x(ids(t)) = s{e}.px(ii(t));
+            y(ids(t)) = s{e}.py(ii(t));
+        end
+    end
+
+    for j = 1:4
+        kp = nd.crossPointsPerElement(e, j);
+        if kp ~= 0
+            id = m + kp;
+            if isnan(x(id))
+                ii = s{e}.idx_corners(j);
+                x(id) = s{e}.px(ii);
+                y(id) = s{e}.py(ii);
+            end
+        end
+    end
+end
+
+if (length(varargin)>0)
+    p = nd.permutation(varargin{1});
+else
+    p = nd.permutation(:);
+end
+
+figure;
+scatter(x(p), y(p), 20, 'filled');
+axis equal;
+axis([0 1 0 1]);
+
+% Lines
+pp = p(:);                          
+S2p = S2(1:numel(pp), 1:numel(pp)); 
+
+[I,J] = find(triu(S2p,1));
+hold on
+for k = 1:numel(I)
+    gi = pp(I(k));  gj = pp(J(k));
+    line([x(gi) x(gj)], [y(gi) y(gj)], 'Color',[0 0 0], 'LineWidth',0.25);
+end
+hold off
+
+for i = 1:numel(p)
+    text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
+end
 end

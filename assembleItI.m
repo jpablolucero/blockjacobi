@@ -147,9 +147,9 @@ R   = zeros(N,1);
     function ensureCapacity(needed)
         if ptr + needed > length(II)
             extra = max(estNNZ, needed);
-            II = [II; zeros(extra,1)]; %#ok<SETNU>
-            JJ = [JJ; zeros(extra,1)]; %#ok<SETNU>
-            VV = [VV; zeros(extra,1)]; %#ok<SETNU>
+            II = [II; zeros(extra,1)];
+            JJ = [JJ; zeros(extra,1)];
+            VV = [VV; zeros(extra,1)];
         end
     end
 
