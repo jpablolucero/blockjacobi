@@ -31,8 +31,8 @@ function [px,py,K,rhs0,Mb,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
     node = @(i,j) (j-1)*(mx+1)+i;
     Nn = (mx+1)*(my+1);
 
-    K = sparse(Nn,Nn);
-    rhs0 = zeros(Nn,1);
+    K = complex(sparse(Nn,Nn));
+    rhs0 = complex(zeros(Nn,1));
 
     quad = Quadrature(5);
     t = 0.5 * (quad.Points + 1);
@@ -44,8 +44,8 @@ function [px,py,K,rhs0,Mb,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
             x0 = ax + (i-1)*hx;
             y0 = ay + (j-1)*hy;
 
-            Ke = zeros(4,4);
-            Fe = zeros(4,1);
+            Ke = complex(zeros(4,4));
+            Fe = complex(zeros(4,1));
 
             for a = 1:numel(t)
                 for b = 1:numel(t)
@@ -97,14 +97,12 @@ function [px,py,K,rhs0,Mb,u] = get_fem(div,c0_fun,f_fun,ax,bx,ay,by,mx,my,BC)
         Mb([n1;n2],[n1;n2]) = Mb([n1;n2],[n1;n2]) + Me_x;
     end
 
-    % Mb = eye(size(Mb,1));
-
     if isempty(BC)
         u = [];
         return
     end
 
-    u = zeros(Nn,1);
+    u = complex(zeros(Nn,1));
 
     idx_left = node(ones(my+1,1), (1:(my+1))');
     idx_right = node((mx+1)*ones(my+1,1), (1:(my+1))');

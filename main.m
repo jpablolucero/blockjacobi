@@ -102,7 +102,7 @@ if poincareSteklovOperator == "DtN"
 
     fprintf('Final   L2-norm of GMRES:       %d\n', norm(R2 - S2*u_skel(nd.permutation)));
 
-    [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel');
+    [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
 else
     [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom);
 
