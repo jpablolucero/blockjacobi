@@ -2,7 +2,7 @@ clear;
 
 k = 2;
 eta = k;
-for div = 2:2
+for div = 1:1
     calculate(5, div, true, @()DtNTest1(k), eta);
 end
 
@@ -29,7 +29,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         cnt = cnt + 1;
         s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, ...
-                            poincareSteklovOperator, @get_fem);
+                            poincareSteklovOperator, @get_sem);
 
         % --- Side BCs on the physical boundary ---
         if abs(s{cnt}.ax - Xdom(1)) < tol
@@ -45,14 +45,8 @@ for jy = 1:N
             s{cnt}.setBoundaryCondition(IBC{4}(s{cnt}.px(s{cnt}.idx(4)), s{cnt}.py(s{cnt}.idx(4))), 4);
         end
 
-        % --- Corner BCs: weighted average of adjacent exterior IBC values ---
-        ic = s{cnt}.idx(5);                        % global node indices of the 4 corners
+        ic = s{cnt}.idx(5); 
         gc = zeros(numel(ic), 1);
-        %  Corner order: BL=1, BR=2, TL=3, TR=4
-        %  BL touches sides 1(left) and 3(bottom)
-        %  BR touches sides 2(right) and 3(bottom)
-        %  TL touches sides 1(left) and 4(top)
-        %  TR touches sides 2(right) and 4(top)
         cornerExtSides = {[1,3], [2,3], [1,4], [2,4]};
         for c = 1:4
             for ss = cornerExtSides{c}(:).'
@@ -91,6 +85,13 @@ fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_glob
 fprintf("Rel L2 error u_global vs u_ref:     %.5e\n", norm(u_global - u_ref_global) / norm(u_ref_global));
 
 % ================================================================
+%  Compare with monolithic FEM
+% ================================================================
+[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
+                              2^(divP+div), 2^(divP+div), BC);
+fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+
+% ================================================================
 %  Plot
 % ================================================================
 if doPlot
@@ -103,11 +104,6 @@ if doPlot
     view(3);
 end
 
-% ================================================================
-%  Compare with monolithic FEM
-% ================================================================
-[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
-                              2^(divP+div), 2^(divP+div), BC);
-fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+
 
 end

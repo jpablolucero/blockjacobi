@@ -2,8 +2,8 @@ clear;
 
 k = 2;
 eta = k;
-[u_exact, rhs, c0, ~, ~, IBC, ~, ~] = DtNTest1(k);
-% [u_exact,rhs,c0,IBC,poincareSteklovOperator] = ItITest1(k);
+[u_exact,rhs,c0,BC,IBC] = DtNTest1(k);
+% [u_exact,rhs,c0,BC,IBC] = ItITest1(k);
 poincareSteklovOperator = "ItI";
 
 for div = 5:5
@@ -191,6 +191,42 @@ for div = 5:5
 
     fprintf("div: %i\n", div);
     fprintf("Rel L2 error = %.15e\n", sqrt(num / den));
+
+    % --- Compare with monolithic FEM ---
+    divP = 1;
+    n = 2^div + 1;
+    nG = 2*n - 1;   % 2 subdomains per direction, shared nodes
+
+    u_global = zeros(nG, nG);
+    pxG = zeros(nG, nG);
+    pyG = zeros(nG, nG);
+
+    subs  = {sSW, sSE, sNW, sNE};
+    usubs = {uSW, uSE, uNW, uNE};
+    ixOff = [0, n-1, 0,   n-1];
+    jyOff = [0, 0,   n-1, n-1];
+
+    for q = 1:4
+        Si = subs{q};
+        for ly = 1:n
+            for lx = 1:n
+                gx = ixOff(q) + lx;
+                gy = jyOff(q) + ly;
+                locIdx = (ly-1)*n + lx;
+                pxG(gx, gy) = Si.px(locIdx);
+                pyG(gx, gy) = Si.py(locIdx);
+                u_global(gx, gy) = usubs{q}(locIdx);
+            end
+        end
+    end
+
+    u_global = u_global(:);
+    pxG = pxG(:);
+    pyG = pyG(:);
+
+    [pxG,pyG,~,~,~,uMono] = get_fem(divP+div, c0, rhs, 0, 1, 0, 1, ...
+        2^(divP+div), 2^(divP+div), BC);
+    fprintf("Rel L2 error between discrete solutions: %.5e\n", norm(uMono - u_global)/norm(uMono));
 
     n = 2^div + 1;
 

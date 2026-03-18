@@ -2,16 +2,16 @@ clear;
 
 k = 2;
 eta = k;
-[u_exact, rhs, c0, BC, ~, IBC, ~, ~] = DtNTest1(k);
-% [u_exact,rhs,c0,IBC,~] = ItITest1(k);
+[u_exact,rhs,c0,BC,IBC] = DtNTest1(k);
+% [u_exact,rhs,c0,BC,IBC] = ItITest1(k);
 
 ay = 0; by = 1;
 axW = 0; bxW = 1;
 axE = 1; bxE = 2;
 
 for div = 5:5
-    sW = Subdomain(div, rhs, axW, bxW, ay, by, 0, c0, "DtN", @get_sem);
-    sE = Subdomain(div, rhs, axE, bxE, ay, by, 0, c0, "DtN", @get_sem);
+    sW = Subdomain(div, rhs, axW, bxW, ay, by, 0, c0, "DtN", @get_fem);
+    sE = Subdomain(div, rhs, axE, bxE, ay, by, 0, c0, "DtN", @get_fem);
 
     allEdgesSizeW = sum(sW.b(1:4));
     allEdgesSizeE = sum(sE.b(1:4));
