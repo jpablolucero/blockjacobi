@@ -4,8 +4,8 @@ k = 8;
 
 poincareSteklovOperator = "ItI"; 
 
-for div = 2:2
-    calculate(2, div, true, @()test4(k), poincareSteklovOperator, k);
+for div = 1:1
+    calculate(5, div, true, @()test4(k), poincareSteklovOperator, k);
 end
 
 function calculate(div, divP, plot, test, poincareSteklovOperator, k)
@@ -36,7 +36,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         cnt = cnt + 1;
 
-        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_fem);
+        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_sem);
 
         if abs(s{cnt}.ax - Xdom(1)) < tol
             s{cnt}.setBoundaryCondition(sideBC{1}(s{cnt}.px(s{cnt}.idx(1)), s{cnt}.py(s{cnt}.idx(1))), 1);
@@ -105,6 +105,7 @@ if poincareSteklovOperator == "DtN"
     fprintf('Residual norm of skeleton solve: %e\n', norm(R2 - S2*u_skel(nd.permutation)));
 
     [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
+
 else
     nd = NestedDissectionItI(divP);
     nd.divide(0);
@@ -112,9 +113,9 @@ else
 
     [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom);
 
-    plot_points_in_nd_permutation_order(s, div, nd, S);
-
     u_skel = S \ R;
+
+    % plot_points_in_nd_permutation_order_ItI(s, div, nd);
 
     fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
 
@@ -213,4 +214,145 @@ hold off
 for i = 1:numel(p)
     text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
 end
+end
+
+function plot_points_in_nd_permutation_order_ItI(s, div, nd, varargin)
+m = 2^div - 1;
+nf = size(nd.elementsPerFace,1);
+nic = size(nd.elementsPerCrossPoint,1);
+nbc = size(nd.elementsPerBoundaryCrossPoint,1);
+nfd = 2*m*nf;
+nt = nfd + 4*nic + 2*nbc;
+
+x = nan(nt,1);
+y = nan(nt,1);
+
+h = min(cellfun(@(t) min(t.bx-t.ax,t.by-t.ay), s));
+e = 0.03*h/(2^div);
+
+for f = 1:nf
+    for q = 1:2
+        k = (f-1)*2*m + (q-1)*m + (1:m);
+        t = s{nd.elementsPerFace(f,q)};
+        r = t.idx(nd.elementSidePerFace(f,q));
+        x(k) = t.px(r);
+        y(k) = t.py(r);
+        if nd.elementSidePerFace(f,q) == 1
+            x(k) = x(k) + e;
+        elseif nd.elementSidePerFace(f,q) == 2
+            x(k) = x(k) - e;
+        elseif nd.elementSidePerFace(f,q) == 3
+            y(k) = y(k) + e;
+        else
+            y(k) = y(k) - e;
+        end
+    end
+end
+
+for k = 1:nic
+    r = nfd + 4*(k-1);
+    t = s{nd.elementsPerCrossPoint(k,1)};
+    x(r+1) = t.bx + e;
+    y(r+1) = t.by + e;
+    t = s{nd.elementsPerCrossPoint(k,2)};
+    x(r+2) = t.ax - e;
+    y(r+2) = t.by + e;
+    t = s{nd.elementsPerCrossPoint(k,3)};
+    x(r+3) = t.bx + e;
+    y(r+3) = t.ay - e;
+    t = s{nd.elementsPerCrossPoint(k,4)};
+    x(r+4) = t.ax - e;
+    y(r+4) = t.ay - e;
+end
+
+for k = 1:nbc
+    for q = 1:2
+        r = nfd + 4*nic + 2*(k-1) + q;
+        t = s{nd.elementsPerBoundaryCrossPoint(k,q)};
+        c = nd.cornersPerBoundaryCrossPoint(k,q);
+        if c == 1
+            x(r) = t.ax - e;
+            y(r) = t.by + e;
+        elseif c == 2
+            x(r) = t.bx + e;
+            y(r) = t.by + e;
+        elseif c == 3
+            x(r) = t.bx + e;
+            y(r) = t.ay - e;
+        else
+            x(r) = t.ax - e;
+            y(r) = t.ay - e;
+        end
+    end
+end
+
+if nargin > 3
+    p = nd.permutation(varargin{1});
+else
+    p = nd.permutation;
+end
+
+figure('Position',[100 100 1400 1400]);
+scatter(x(p),y(p),20,'filled');
+axis equal;
+axis([0 1 0 1]);
+hold on
+
+for j = 1:numel(p)
+    id = p(j);
+    if id <= nfd
+        f = floor((id-1)/(2*m)) + 1;
+        q = floor(mod(id-1,2*m)/m) + 1;
+        side = nd.elementSidePerFace(f,q);
+        if side == 1
+            dx = 4*e;
+            dy = 0;
+        elseif side == 2
+            dx = -4*e;
+            dy = 0;
+        elseif side == 3
+            dx = 0;
+            dy = 4*e;
+        else
+            dx = 0;
+            dy = -4*e;
+        end
+    elseif id <= nfd + 4*nic
+        q = mod(id-nfd-1,4) + 1;
+        if q == 1
+            dx = 4*e;
+            dy = 4*e;
+        elseif q == 2
+            dx = -4*e;
+            dy = 4*e;
+        elseif q == 3
+            dx = 4*e;
+            dy = -4*e;
+        else
+            dx = -4*e;
+            dy = -4*e;
+        end
+    else
+        r = id - nfd - 4*nic;
+        k = floor((r-1)/2) + 1;
+        q = mod(r-1,2) + 1;
+        c = nd.cornersPerBoundaryCrossPoint(k,q);
+        if c == 1
+            dx = -4*e;
+            dy = 4*e;
+        elseif c == 2
+            dx = 4*e;
+            dy = 4*e;
+        elseif c == 3
+            dx = 4*e;
+            dy = -4*e;
+        else
+            dx = -4*e;
+            dy = -4*e;
+        end
+    end
+    text(x(id)+dx,y(id)+dy,sprintf('%d',id),'HorizontalAlignment','center','VerticalAlignment','middle','FontSize',12,'FontWeight','bold');
+end
+
+hold off
 end
