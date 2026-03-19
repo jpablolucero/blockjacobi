@@ -165,24 +165,24 @@ classdef NestedDissection < handle
         function calculateReordering(obj, dofsPerFace)
 
             nFaceDofsTotal = size(obj.elementsPerFace, 1) * dofsPerFace;
-            
-            obj.permutation = [];
-            obj.nDofsPerMacroFace = [];
 
-            faceDofCursor  = 0;
+            obj.permutation = zeros(0,1);
+            obj.nDofsPerMacroFace = cell(numel(obj.levels),1);
             for level = 1:numel(obj.levels)
-                facesPerMacroFace        = obj.levels(level) / obj.macroFacesPerLevel(level);
-                nCrossPointsPerMacroFace = size(obj.enclosedCrossPointsPerMacroFace{level}, 2);
-                
-                obj.nDofsPerMacroFace(end+1,1)   = facesPerMacroFace * dofsPerFace + nCrossPointsPerMacroFace;
+                obj.nDofsPerMacroFace{level} = zeros(obj.macroFacesPerLevel(level),1);
+            end
+
+            faceDofCursor = 0;
+            for level = 1:numel(obj.levels)
+                facesPerMacroFace = obj.levels(level) / obj.macroFacesPerLevel(level);
 
                 for macroFace = 1:obj.macroFacesPerLevel(level)
+                    blockStart = numel(obj.permutation) + 1;
 
-                    nFaces = facesPerMacroFace;
-                    cps    = obj.enclosedCrossPointsPerMacroFace{level}(macroFace, :);
-                    nCps   = numel(cps);
+                    cps = obj.enclosedCrossPointsPerMacroFace{level}(macroFace,:);
+                    nCps = numel(cps);
 
-                    for f = 1:nFaces
+                    for f = 1:facesPerMacroFace
                         faceDofs = (faceDofCursor + (f-1)*dofsPerFace + 1):(faceDofCursor + f*dofsPerFace);
                         obj.permutation = [obj.permutation; faceDofs(:)];
 
@@ -192,9 +192,9 @@ classdef NestedDissection < handle
                         end
                     end
 
-                    faceDofCursor = faceDofCursor + nFaces * dofsPerFace;
+                    obj.nDofsPerMacroFace{level}(macroFace,1) = numel(obj.permutation) - blockStart + 1;
+                    faceDofCursor = faceDofCursor + facesPerMacroFace * dofsPerFace;
                 end
-            
             end
 
         end

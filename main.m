@@ -5,7 +5,7 @@ k = 2;
 poincareSteklovOperator = "ItI"; 
 
 for div = 2:2
-    calculate(2, div, false, @()test1(k), poincareSteklovOperator, k);
+    calculate(2, div, true, @()test1(k), poincareSteklovOperator, k);
 end
 
 function calculate(div, divP, plot, test, poincareSteklovOperator, k)
@@ -80,46 +80,41 @@ end
 % ================================================================
 %  Assemble, solve, reconstruct
 % ================================================================
+
+
 if poincareSteklovOperator == "DtN"
     nd = NestedDissection(divP);
     nd.divide(0);
     nd.calculateReordering(2^div - 1);
-
-    [S, R] = assembleDtN(s, div, nd);
-
-    S2 = S(nd.permutation, nd.permutation);
-    R2 = R(nd.permutation);
-
-    plot_points_in_nd_permutation_order(s, div, nd, S2);
-
-    m = 1;
-    S2inv = Multigrid(S2, nd, length(nd.levels), m);
-
-    M   = @(r) S2inv.vcycle(r);
-    rho = 1 - 1/(2*m + 1)^2;
-
-    u_skel = zeros(size(S2, 1), 1);
-    MR2 = M(R2);
-    u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
-
-    fprintf('Residual norm of skeleton solve: %e\n', norm(R2 - S2*u_skel(nd.permutation)));
-
-    [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
-
+    [S,R] = assembleDtN(s, div, nd);
 else
     nd = NestedDissectionItI(divP);
     nd.divide(0);
     nd.calculateReordering(2^div - 1);
-
     [S,R] = assembleItI(s, div, nd, IBC);
+end
 
-    u_skel = S \ R;
+S2 = S(nd.permutation, nd.permutation);
+R2 = R(nd.permutation);
 
-    fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
+m = 1;
+S2inv = Multigrid(S2, nd, length(nd.levels), m);
 
-    [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI(s, divP, div, IBC, nd, u_skel);
+M   = @(r) S2inv.vcycle(r);
+rho = 1 - 1/(2*m + 1)^2;
 
+u_skel = zeros(size(S2, 1), 1);
+MR2 = M(R2);
+u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
+
+fprintf('Residual norm of skeleton solve: %e\n', norm(R2 - S2*u_skel(nd.permutation)));
+
+if poincareSteklovOperator == "DtN"
+    plot_points_in_nd_permutation_order(s, div, nd, S2);
+    [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
+else
     plotItIDofIndices(s,div,nd);
+    [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI(s, divP, div, IBC, nd, u_skel);
 end
 
 % ================================================================

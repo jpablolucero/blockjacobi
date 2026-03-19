@@ -218,7 +218,11 @@ classdef NestedDissectionItI < handle
             end
 
             obj.permutation = zeros(0,1);
-            obj.nDofsPerMacroFace = zeros(0,1);
+
+            obj.nDofsPerMacroFace = cell(numel(obj.levels),1);
+            for level = 1:numel(obj.levels)
+                obj.nDofsPerMacroFace{level} = zeros(obj.macroFacesPerLevel(level),1);
+            end
 
             usedPoint = false(size(pointDofPerElement));
 
@@ -316,7 +320,7 @@ classdef NestedDissectionItI < handle
                         end
                     end
 
-                    obj.nDofsPerMacroFace(end+1,1) = numel(obj.permutation) - blockStart + 1;
+                    obj.nDofsPerMacroFace{level}(macroFace,1) = numel(obj.permutation) - blockStart + 1;
                 end
             end
 

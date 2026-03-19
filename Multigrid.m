@@ -12,31 +12,32 @@ classdef Multigrid < handle
     end
     methods
         function obj = Multigrid(A_in,nd,lmax,m)
-            obj.bSize = nd.nDofsPerMacroFace(:);
+            obj.bSize = nd.nDofsPerMacroFace;
             obj.m = m;
-            obj.A     = {};
-            obj.M     = {};
-            obj.B     = {};
-            obj.C     = {};
-            obj.D     = {};
-            M         = A_in;
-            obj.M{1}  = M;
-            ilevel    = 1;
+            obj.A = {};
+            obj.M = {};
+            obj.B = {};
+            obj.C = {};
+            obj.D = {};
+
+            obj.M{1} = A_in;
+            ilevel = 1;
+
             while ilevel < lmax
-                n_b    = nd.macroFacesPerLevel(ilevel);
-                bL     = obj.bSize(ilevel);
-                ilevel = ilevel + 1;
+                nA = sum(obj.bSize{ilevel});
 
-                A = obj.M{end}(1:n_b*bL,           1:n_b*bL);
-                B = obj.M{end}(1:n_b*bL,           n_b*bL+1:end);
-                C = obj.M{end}(n_b*bL+1:end,       1:n_b*bL);
-                D = obj.M{end}(n_b*bL+1:end,       n_b*bL+1:end);
+                A = obj.M{end}(1:nA,     1:nA);
+                B = obj.M{end}(1:nA,     nA+1:end);
+                C = obj.M{end}(nA+1:end, 1:nA);
+                D = obj.M{end}(nA+1:end, nA+1:end);
 
-                obj.M{end+1} = sparse(D - C*(A\B));
+                obj.M{end+1} = sparse(D - C * (A \ B));
                 obj.A{end+1} = A;
                 obj.B{end+1} = B;
                 obj.C{end+1} = C;
                 obj.D{end+1} = D;
+
+                ilevel = ilevel + 1;
             end
         end
 
