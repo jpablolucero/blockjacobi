@@ -1,395 +1,245 @@
-function [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom)
-%ASSEMBLEITI  Assemble the Impedance-to-Impedance skeleton system.
-%
-%   [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom)
-%
-%   Inputs
-%     s      – cell array of Subdomain objects (linear index, jy-major)
-%     div    – element refinement level  (2^div+1 nodes per subdomain side)
-%     divP   – partition level           (2^divP subdomains per direction)
-%     IBC    – cell{4} of impedance boundary-condition functions
-%     Xdom   – [x0, x1] domain x-extent
-%     Ydom   – [y0, y1] domain y-extent
-%
-%   Outputs
-%     S, R   – skeleton linear system  S * u_skel = R
-%     skel   – struct with numbering data needed by reconstructVolumeSolutionItI
+function [S,R] = assembleItI(s,div,nd,IBC)
+dofPerFace = 2^div - 1;
+nFaces = size(nd.elementsPerFace,1);
+totalFaceDofs = 2 * nFaces * dofPerFace;
 
-nSub = 2^divP;
-m    = 2^div - 1;
+pointDofPerElement = zeros(size(nd.crossPointsPerElement));
+pointDofCursor = 0;
+for e = 1:size(nd.crossPointsPerElement,1)
+    for c = 1:4
+        if nd.crossPointsPerElement(e,c) ~= 0
+            pointDofCursor = pointDofCursor + 1;
+            pointDofPerElement(e,c) = pointDofCursor;
+        end
+    end
+end
+totalPointDofs = pointDofCursor;
 
-cBL = 4*m+1;  cBR = 4*m+2;  cTL = 4*m+3;  cTR = 4*m+4;
-localCornerBdryIdx = [cBL, cBR, cTL, cTR];
+faceBlockPerElementSide = zeros(size(nd.facePerElement));
+for i = 1:nFaces
+    e = nd.elementsPerFace(i,1);
+    f = nd.elementSidePerFace(i,1);
+    faceBlockPerElementSide(e,f) = 2*(i-1) + 1;
 
-% Reshape linear cell array to (ix, jy) grid
-Sub = reshape(s, [nSub, nSub]);
+    e = nd.elementsPerFace(i,2);
+    f = nd.elementSidePerFace(i,2);
+    faceBlockPerElementSide(e,f) = 2*(i-1) + 2;
+end
 
-% ================================================================
-%  Geometry tables
-% ================================================================
-%  Neighbour of side s:  side nbSide(s) of subdomain offset by (nbDi,nbDj)
-nbDi   = [-1,  1,  0,  0];
-nbDj   = [ 0,  0, -1,  1];
-nbSide = [ 2,  1,  4,  3];
+S = spalloc(totalFaceDofs + totalPointDofs, totalFaceDofs + totalPointDofs, 0);
+R = sparse(totalFaceDofs + totalPointDofs, 1);
 
-%  Corner c of (ii,jj) sits at vertex (ii+cDi(c), jj+cDj(c))
-cDi = [-1,  0, -1,  0];   % BL BR TL TR
-cDj = [-1, -1,  0,  0];
+for i = 1:nFaces
+    for q = 1:2
+        block = 2*(i-1) + q;
+        rows = (block-1)*dofPerFace + (1:dofPerFace);
 
-%  Which physical-boundary sides can contribute an IBC at corner c?
+        e = nd.elementsPerFace(i,q);
+        side = nd.elementSidePerFace(i,q);
+        otherBlock = 2*(i-1) + (3-q);
+
+        R(rows) = -s{e}.h{side};
+
+        for f = 1:4
+            k = nd.facePerElement(e,f);
+            if k ~= 0
+                b = faceBlockPerElementSide(e,f);
+                cols = (b-1)*dofPerFace + (1:dofPerFace);
+                S(rows,cols) = S(rows,cols) + s{e}.T{side,f};
+            end
+        end
+
+        colsOther = (otherBlock-1)*dofPerFace + (1:dofPerFace);
+        S(rows,colsOther) = S(rows,colsOther) + speye(dofPerFace);
+
+        for c = 1:4
+            k = nd.crossPointsPerElement(e,c);
+            if k ~= 0
+                pd = pointDofPerElement(e,c);
+                if nnz(nd.elementsPerCrossPoint(k,:)) == 2
+                    w = 0.5;
+                else
+                    w = 1.0;
+                end
+                S(rows,totalFaceDofs + pd) = S(rows,totalFaceDofs + pd) + w * s{e}.T{side,5}(:,c);
+            end
+        end
+    end
+end
+
+cornerMbIndex = @(lc) 4 * dofPerFace + lc;
+
+Xmin = min(cellfun(@(t) t.ax, s));
+Xmax = max(cellfun(@(t) t.bx, s));
+Ymin = min(cellfun(@(t) t.ay, s));
+Ymax = max(cellfun(@(t) t.by, s));
+tol = 1.0e-12;
 cornerExtSides = {[1,3], [2,3], [1,4], [2,4]};
 
-%  Is side s of subdomain (ii,jj) an interior interface?
-isIntMat = false(nSub, nSub, 4);
-for jj = 1:nSub
-    for ii = 1:nSub
-        for ss = 1:4
-            isIntMat(ii,jj,ss) = ~( (ss==1 && ii==1)    || (ss==2 && ii==nSub) || ...
-                                    (ss==3 && jj==1)     || (ss==4 && jj==nSub) );
-        end
-    end
-end
+for k = 1:size(nd.crossPointGrid,1)
+    E = nd.elementsPerCrossPoint(k,:);
+    E = E(E ~= 0);
+    nInc = numel(E);
 
-% ================================================================
-%  Corner weights and BC values
-% ================================================================
-cornerWeight = zeros(nSub, nSub, 4);
-cornerBCval  = cell(nSub, nSub);
+    lcs = zeros(1,nInc);
+    pds = zeros(1,nInc);
 
-for jj = 1:nSub
-    for ii = 1:nSub
-        bcv = zeros(4,1);
+    for t = 1:nInc
+        e = E(t);
         for c = 1:4
-            vi = ii + cDi(c);
-            vj = jj + cDj(c);
-            nExtEdge = (vi==0) + (vi==nSub) + (vj==0) + (vj==nSub);
-
-            if     nExtEdge >= 2,  cornerWeight(ii,jj,c) = 0;
-            elseif nExtEdge == 1,  cornerWeight(ii,jj,c) = 0.5;
-            else,                  cornerWeight(ii,jj,c) = 1;
-            end
-
-            cidx = localCornerBdryIdx(c);
-            px_c = Sub{ii,jj}.px(Sub{ii,jj}.idx_boundary(cidx));
-            py_c = Sub{ii,jj}.py(Sub{ii,jj}.idx_boundary(cidx));
-            for ss = cornerExtSides{c}(:).'
-                if ~isIntMat(ii,jj,ss)
-                    bcv(c) = bcv(c) + 0.5 * IBC{ss}(px_c, py_c);
-                end
-            end
-        end
-        cornerBCval{ii,jj} = bcv;
-    end
-end
-
-% ================================================================
-%  Number the skeleton unknowns
-% ================================================================
-%  --- Edge unknowns: m per interior side ---
-edgeStart = zeros(nSub, nSub, 4);
-cnt = 0;
-for jj = 1:nSub
-    for ii = 1:nSub
-        for ss = 1:4
-            if isIntMat(ii,jj,ss)
-                edgeStart(ii,jj,ss) = cnt*m + 1;
-                cnt = cnt + 1;
+            if nd.crossPointsPerElement(e,c) == k
+                lcs(t) = c;
+                pds(t) = pointDofPerElement(e,c);
+                break
             end
         end
     end
-end
-nEdgeUnk = cnt * m;
 
-%  --- Corner unknowns: one per subdomain-corner at each non-domain-corner vertex ---
-cornerGIdx = zeros(nSub, nSub, 4);
-nCornerUnk = 0;
+    if nInc == 2
+        for t = 1:2
+            e = E(t);
+            lc = lcs(t);
+            pd = pds(t);
+            otherPd = pds(3-t);
 
-%  Vertex (vi,vj) ∈ {0,...,nSub}^2 is shared by up to 4 subdomains:
-%    TR(c=4) of (vi,  vj  )     if vi>=1,    vj>=1
-%    TL(c=3) of (vi+1,vj  )     if vi<nSub,  vj>=1
-%    BR(c=2) of (vi,  vj+1)     if vi>=1,    vj<nSub
-%    BL(c=1) of (vi+1,vj+1)     if vi<nSub,  vj<nSub
-vertexList = struct('vi',{},'vj',{},'subs',{},'type',{});
+            r = totalFaceDofs + pd;
 
-for vj = 0:nSub
-    for vi = 0:nSub
-        nExtEdge = (vi==0) + (vi==nSub) + (vj==0) + (vj==nSub);
-        if nExtEdge >= 2, continue; end      % domain corner – fully determined
-
-        subs = zeros(0,3);
-        if vi>=1      && vj>=1,      subs(end+1,:) = [vi,   vj,   4]; end %#ok<AGROW>
-        if vi+1<=nSub && vj>=1,      subs(end+1,:) = [vi+1, vj,   3]; end %#ok<AGROW>
-        if vi>=1      && vj+1<=nSub, subs(end+1,:) = [vi,   vj+1, 2]; end %#ok<AGROW>
-        if vi+1<=nSub && vj+1<=nSub, subs(end+1,:) = [vi+1, vj+1, 1]; end %#ok<AGROW>
-
-        for kk = 1:size(subs,1)
-            nCornerUnk = nCornerUnk + 1;
-            cornerGIdx(subs(kk,1), subs(kk,2), subs(kk,3)) = nEdgeUnk + nCornerUnk;
-        end
-
-        if nExtEdge == 1, vtype = 'junction';
-        else,             vtype = 'interior';
-        end
-        vertexList(end+1) = struct('vi',vi,'vj',vj,'subs',subs,'type',vtype); %#ok<AGROW>
-    end
-end
-N = nEdgeUnk + nCornerUnk;
-
-% ================================================================
-%  Assemble skeleton system  S x = R
-% ================================================================
-estNNZ = nEdgeUnk * (2*m + 10) + nCornerUnk * (2*m + 16);
-II = zeros(estNNZ,1);  JJ = zeros(estNNZ,1);  VV = zeros(estNNZ,1);
-ptr = 0;
-R   = zeros(N,1);
-
-% Helper to grow triplet arrays if needed
-    function ensureCapacity(needed)
-        if ptr + needed > length(II)
-            extra = max(estNNZ, needed);
-            II = [II; zeros(extra,1)];
-            JJ = [JJ; zeros(extra,1)];
-            VV = [VV; zeros(extra,1)];
-        end
-    end
-
-% -------- Edge equations --------
-for jj = 1:nSub
-    for ii = 1:nSub
-        Si = Sub{ii,jj};
-        for ss = 1:4
-            if ~isIntMat(ii,jj,ss), continue; end
-            rowOff = edgeStart(ii,jj,ss);
-            rows   = (rowOff : rowOff+m-1).';
-
-            % T{s,t}  for every interior side t of this subdomain
-            for t = 1:4
-                if ~isIntMat(ii,jj,t), continue; end
-                colOff = edgeStart(ii,jj,t);
-                cols   = (colOff : colOff+m-1).';
-                [ri, ci, vi] = find(sparse(Si.T{ss,t}));
-                nz = length(vi);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = rows(ri);
-                JJ(ptr+1:ptr+nz) = cols(ci);
-                VV(ptr+1:ptr+nz) = vi;
-                ptr = ptr + nz;
-            end
-
-            % Identity coupling to the neighbour's matching side
-            ni = ii + nbDi(ss);  nj = jj + nbDj(ss);  ns = nbSide(ss);
-            colOff = edgeStart(ni, nj, ns);
-            cols   = (colOff : colOff+m-1).';
-            ensureCapacity(m);
-            II(ptr+1:ptr+m) = rows;
-            JJ(ptr+1:ptr+m) = cols;
-            VV(ptr+1:ptr+m) = ones(m,1);
-            ptr = ptr + m;
-
-            % Corner coupling:  weight(c) * T{s,5}(:,c)
-            for c = 1:4
-                w = cornerWeight(ii,jj,c);
-                if w == 0, continue; end
-                gidx = cornerGIdx(ii,jj,c);
-                if gidx == 0, continue; end
-                vals = full(w * Si.T{ss,5}(:,c));
-                idx  = find(vals);  nz = length(idx);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = rows(idx);
-                JJ(ptr+1:ptr+nz) = gidx;
-                VV(ptr+1:ptr+nz) = vals(idx);
-                ptr = ptr + nz;
-            end
-
-            R(rows) = -Si.h{ss};
-        end
-    end
-end
-
-% -------- Corner equations --------
-for vv = 1:length(vertexList)
-    V    = vertexList(vv);
-    subs = V.subs;
-    nv   = size(subs,1);
-
-    if strcmp(V.type, 'junction')
-        % ==== Junction vertex (2 subdomains, 2 equations) ====
-        for kk = 1:nv
-            ii = subs(kk,1);  jj = subs(kk,2);  c = subs(kk,3);
-            Si  = Sub{ii,jj};
-            row = cornerGIdx(ii,jj,c);
-
-            % Edge terms: T{5,t}(c,:)
-            for t = 1:4
-                if ~isIntMat(ii,jj,t), continue; end
-                colOff = edgeStart(ii,jj,t);
-                vals   = full(Si.T{5,t}(c,:));
-                idx    = find(vals);  nz = length(idx);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = row;
-                JJ(ptr+1:ptr+nz) = colOff - 1 + idx(:);
-                VV(ptr+1:ptr+nz) = vals(idx(:));
-                ptr = ptr + nz;
-            end
-
-            % Corner terms:  w*T{5,5}(c,c2) + delta(c,c2)*w
-            for c2 = 1:4
-                w2   = cornerWeight(ii,jj,c2);
-                if w2 == 0, continue; end
-                gidx = cornerGIdx(ii,jj,c2);
-                if gidx == 0, continue; end
-                val  = w2 * Si.T{5,5}(c,c2);
-                if c2 == c, val = val + w2; end
-                if val ~= 0
-                    ensureCapacity(1);
-                    ptr = ptr+1;
-                    II(ptr) = row; JJ(ptr) = gidx; VV(ptr) = val;
+            for f = 1:4
+                kk = nd.facePerElement(e,f);
+                if kk ~= 0
+                    b = faceBlockPerElementSide(e,f);
+                    cols = (b-1)*dofPerFace + (1:dofPerFace);
+                    S(r,cols) = S(r,cols) + s{e}.T{5,f}(lc,:);
                 end
             end
 
-            % Identity coupling (=1) to each other subdomain's corner at this vertex
-            for kk2 = 1:nv
-                if kk2 == kk, continue; end
-                gidx = cornerGIdx(subs(kk2,1), subs(kk2,2), subs(kk2,3));
-                ensureCapacity(1);
-                ptr = ptr+1;
-                II(ptr) = row; JJ(ptr) = gidx; VV(ptr) = 1;
-            end
-
-            R(row) = -(Si.h{5}(c) - cornerBCval{ii,jj}(c));
-        end
-
-    else
-        % ==== Interior vertex (4 subdomains, 4 equations) ====
-        %  Reference = first entry.
-        %    ref row   ->  sum equation
-        %    other rows ->  difference equations (ref - other) / Mb
-        ii_r = subs(1,1); jj_r = subs(1,2); c_r = subs(1,3);
-        S_r  = Sub{ii_r, jj_r};
-        Mb_r = S_r.Mb(localCornerBdryIdx(c_r), localCornerBdryIdx(c_r));
-
-        % --- Difference equations ---
-        for other = 2:nv
-            ii_o = subs(other,1); jj_o = subs(other,2); c_o = subs(other,3);
-            S_o  = Sub{ii_o, jj_o};
-            Mb_o = S_o.Mb(localCornerBdryIdx(c_o), localCornerBdryIdx(c_o));
-            row  = cornerGIdx(ii_o, jj_o, c_o);
-
-            % Edges from reference  (-T{5,t}(c_r,:) / Mb_r)
-            for t = 1:4
-                if ~isIntMat(ii_r,jj_r,t), continue; end
-                colOff = edgeStart(ii_r,jj_r,t);
-                vals   = full(-S_r.T{5,t}(c_r,:) / Mb_r);
-                idx    = find(vals);  nz = length(idx);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = row;
-                JJ(ptr+1:ptr+nz) = colOff - 1 + idx(:);
-                VV(ptr+1:ptr+nz) = vals(idx(:));
-                ptr = ptr + nz;
-            end
-
-            % Edges from other  (+T{5,t}(c_o,:) / Mb_o)
-            for t = 1:4
-                if ~isIntMat(ii_o,jj_o,t), continue; end
-                colOff = edgeStart(ii_o,jj_o,t);
-                vals   = full(S_o.T{5,t}(c_o,:) / Mb_o);
-                idx    = find(vals);  nz = length(idx);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = row;
-                JJ(ptr+1:ptr+nz) = colOff - 1 + idx(:);
-                VV(ptr+1:ptr+nz) = vals(idx(:));
-                ptr = ptr + nz;
-            end
-
-            % Corners from reference: -w*T{5,5}(c_r,c2)/Mb_r  (+w/Mb_r if c2==c_r)
-            for c2 = 1:4
-                w2   = cornerWeight(ii_r,jj_r,c2);
-                if w2 == 0, continue; end
-                gidx = cornerGIdx(ii_r,jj_r,c2);
-                if gidx == 0, continue; end
-                val  = -w2 * S_r.T{5,5}(c_r,c2) / Mb_r;
-                if c2 == c_r, val = val + w2 / Mb_r; end
-                if val ~= 0
-                    ensureCapacity(1);
-                    ptr = ptr+1;
-                    II(ptr) = row; JJ(ptr) = gidx; VV(ptr) = val;
+            for jc = 1:4
+                kp = nd.crossPointsPerElement(e,jc);
+                if kp ~= 0
+                    qd = pointDofPerElement(e,jc);
+                    if nnz(nd.elementsPerCrossPoint(kp,:)) == 2
+                        w = 0.5;
+                    else
+                        w = 1.0;
+                    end
+                    S(r,totalFaceDofs + qd) = S(r,totalFaceDofs + qd) + w * s{e}.T{5,5}(lc,jc);
                 end
             end
 
-            % Corners from other: +w*T{5,5}(c_o,c2)/Mb_o  (-w/Mb_o if c2==c_o)
-            for c2 = 1:4
-                w2   = cornerWeight(ii_o,jj_o,c2);
-                if w2 == 0, continue; end
-                gidx = cornerGIdx(ii_o,jj_o,c2);
-                if gidx == 0, continue; end
-                val  = w2 * S_o.T{5,5}(c_o,c2) / Mb_o;
-                if c2 == c_o, val = val - w2 / Mb_o; end
-                if val ~= 0
-                    ensureCapacity(1);
-                    ptr = ptr+1;
-                    II(ptr) = row; JJ(ptr) = gidx; VV(ptr) = val;
+            S(r,totalFaceDofs + pd) = S(r,totalFaceDofs + pd) + 0.5;
+            S(r,totalFaceDofs + otherPd) = S(r,totalFaceDofs + otherPd) + 1.0;
+
+            xc = s{e}.px(s{e}.idx_corners(lc));
+            yc = s{e}.py(s{e}.idx_corners(lc));
+            halfIBC = 0;
+            for ss = cornerExtSides{lc}
+                sideIsExt = (ss == 1 && abs(s{e}.ax - Xmin) < tol) || ...
+                            (ss == 2 && abs(s{e}.bx - Xmax) < tol) || ...
+                            (ss == 3 && abs(s{e}.ay - Ymin) < tol) || ...
+                            (ss == 4 && abs(s{e}.by - Ymax) < tol);
+                if sideIsExt
+                    halfIBC = halfIBC + 0.5 * IBC{ss}(xc,yc);
                 end
             end
 
-            R(row) = S_r.h{5}(c_r)/Mb_r - S_o.h{5}(c_o)/Mb_o;
+            R(r) = -(s{e}.h{5}(lc) - halfIBC);
         end
+    elseif nInc == 4
+        eRef = E(1);
+        lcRef = lcs(1);
+        pdRef = pds(1);
+        MRef = s{eRef}.Mb(cornerMbIndex(lcRef),cornerMbIndex(lcRef));
 
-        % --- Sum equation (placed in the reference corner's row) ---
-        row = cornerGIdx(ii_r, jj_r, c_r);
+        for t = 2:4
+            e = E(t);
+            lc = lcs(t);
+            pd = pds(t);
+            Mt = s{e}.Mb(cornerMbIndex(lc),cornerMbIndex(lc));
 
-        for kk = 1:nv
-            ii_k = subs(kk,1); jj_k = subs(kk,2); c_k = subs(kk,3);
-            S_k  = Sub{ii_k, jj_k};
+            r = totalFaceDofs + pds(t-1);
 
-            % Edges: +T{5,t}(c_k,:)
-            for t = 1:4
-                if ~isIntMat(ii_k,jj_k,t), continue; end
-                colOff = edgeStart(ii_k,jj_k,t);
-                vals   = full(S_k.T{5,t}(c_k,:));
-                idx    = find(vals);  nz = length(idx);
-                ensureCapacity(nz);
-                II(ptr+1:ptr+nz) = row;
-                JJ(ptr+1:ptr+nz) = colOff - 1 + idx(:);
-                VV(ptr+1:ptr+nz) = vals(idx(:));
-                ptr = ptr + nz;
-            end
-
-            % Corners: w*T{5,5}(c_k,c2) + delta*w
-            for c2 = 1:4
-                w2   = cornerWeight(ii_k,jj_k,c2);
-                if w2 == 0, continue; end
-                gidx = cornerGIdx(ii_k,jj_k,c2);
-                if gidx == 0, continue; end
-                val  = w2 * S_k.T{5,5}(c_k,c2);
-                if c2 == c_k, val = val + w2; end
-                if val ~= 0
-                    ensureCapacity(1);
-                    ptr = ptr+1;
-                    II(ptr) = row; JJ(ptr) = gidx; VV(ptr) = val;
+            for f = 1:4
+                kk = nd.facePerElement(eRef,f);
+                if kk ~= 0
+                    b = faceBlockPerElementSide(eRef,f);
+                    cols = (b-1)*dofPerFace + (1:dofPerFace);
+                    S(r,cols) = S(r,cols) - s{eRef}.T{5,f}(lcRef,:) / MRef;
                 end
             end
+
+            for jc = 1:4
+                kp = nd.crossPointsPerElement(eRef,jc);
+                if kp ~= 0
+                    qd = pointDofPerElement(eRef,jc);
+                    if nnz(nd.elementsPerCrossPoint(kp,:)) == 2
+                        w = 0.5;
+                    else
+                        w = 1.0;
+                    end
+                    S(r,totalFaceDofs + qd) = S(r,totalFaceDofs + qd) - w * s{eRef}.T{5,5}(lcRef,jc) / MRef;
+                end
+            end
+
+            S(r,totalFaceDofs + pdRef) = S(r,totalFaceDofs + pdRef) + 1.0 / MRef;
+
+            for f = 1:4
+                kk = nd.facePerElement(e,f);
+                if kk ~= 0
+                    b = faceBlockPerElementSide(e,f);
+                    cols = (b-1)*dofPerFace + (1:dofPerFace);
+                    S(r,cols) = S(r,cols) + s{e}.T{5,f}(lc,:) / Mt;
+                end
+            end
+
+            for jc = 1:4
+                kp = nd.crossPointsPerElement(e,jc);
+                if kp ~= 0
+                    qd = pointDofPerElement(e,jc);
+                    if nnz(nd.elementsPerCrossPoint(kp,:)) == 2
+                        w = 0.5;
+                    else
+                        w = 1.0;
+                    end
+                    S(r,totalFaceDofs + qd) = S(r,totalFaceDofs + qd) + w * s{e}.T{5,5}(lc,jc) / Mt;
+                end
+            end
+
+            S(r,totalFaceDofs + pd) = S(r,totalFaceDofs + pd) - 1.0 / Mt;
+            R(r) = s{eRef}.h{5}(lcRef) / MRef - s{e}.h{5}(lc) / Mt;
         end
 
-        hsum = 0;
-        for kk = 1:nv
-            hsum = hsum + Sub{subs(kk,1),subs(kk,2)}.h{5}(subs(kk,3));
+        r = totalFaceDofs + pds(4);
+
+        for t = 1:4
+            e = E(t);
+            lc = lcs(t);
+            pd = pds(t);
+
+            for f = 1:4
+                kk = nd.facePerElement(e,f);
+                if kk ~= 0
+                    b = faceBlockPerElementSide(e,f);
+                    cols = (b-1)*dofPerFace + (1:dofPerFace);
+                    S(r,cols) = S(r,cols) + s{e}.T{5,f}(lc,:);
+                end
+            end
+
+            for jc = 1:4
+                kp = nd.crossPointsPerElement(e,jc);
+                if kp ~= 0
+                    qd = pointDofPerElement(e,jc);
+                    if nnz(nd.elementsPerCrossPoint(kp,:)) == 2
+                        w = 0.5;
+                    else
+                        w = 1.0;
+                    end
+                    S(r,totalFaceDofs + qd) = S(r,totalFaceDofs + qd) + w * s{e}.T{5,5}(lc,jc);
+                end
+            end
+
+            S(r,totalFaceDofs + pd) = S(r,totalFaceDofs + pd) + 1.0;
+            R(r) = R(r) - s{e}.h{5}(lc);
         end
-        R(row) = -hsum;
     end
 end
-
-% Build sparse matrix
-II = II(1:ptr);  JJ = JJ(1:ptr);  VV = VV(1:ptr);
-S  = sparse(II, JJ, VV, N, N);
-
-% Pack skeleton numbering data for reconstruction
-skel.edgeStart          = edgeStart;
-skel.cornerGIdx         = cornerGIdx;
-skel.cornerWeight       = cornerWeight;
-skel.cornerBCval        = cornerBCval;
-skel.isIntMat           = isIntMat;
-skel.localCornerBdryIdx = localCornerBdryIdx;
-skel.m                  = m;
-skel.nSub               = nSub;
-
 end

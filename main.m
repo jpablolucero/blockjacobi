@@ -1,11 +1,11 @@
 clear;
 
-k = 8;
+k = 2;
 
 poincareSteklovOperator = "ItI"; 
 
-for div = 1:1
-    calculate(5, div, true, @()test4(k), poincareSteklovOperator, k);
+for div = 2:2
+    calculate(2, div, false, @()test1(k), poincareSteklovOperator, k);
 end
 
 function calculate(div, divP, plot, test, poincareSteklovOperator, k)
@@ -111,16 +111,15 @@ else
     nd.divide(0);
     nd.calculateReordering(2^div - 1);
 
-    [S, R, skel] = assembleItI(s, div, divP, IBC, Xdom, Ydom);
+    [S,R] = assembleItI(s, div, nd, IBC);
 
     u_skel = S \ R;
 
-    % plot_points_in_nd_permutation_order_ItI(s, div, nd);
-
     fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
 
-    [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI( ...
-        s, divP, div, u_ref, u_skel, skel, IBC, eta);
+    [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI(s, divP, div, IBC, nd, u_skel);
+
+    plotItIDofIndices(s,div,nd);
 end
 
 % ================================================================
@@ -152,6 +151,107 @@ if plot
     view(3);
 end
 
+end
+
+function plotItIDofIndices(s,div,nd)
+dofPerFace = 2^div - 1;
+nFaces = size(nd.elementsPerFace,1);
+totalFaceDofs = 2 * nFaces * dofPerFace;
+
+pointDofPerElement = zeros(size(nd.crossPointsPerElement));
+pointDofCursor = 0;
+for e = 1:size(nd.crossPointsPerElement,1)
+    for c = 1:4
+        if nd.crossPointsPerElement(e,c) ~= 0
+            pointDofCursor = pointDofCursor + 1;
+            pointDofPerElement(e,c) = pointDofCursor;
+        end
+    end
+end
+totalPointDofs = pointDofCursor;
+
+nTot = totalFaceDofs + totalPointDofs;
+xp = nan(nTot,1);
+yp = nan(nTot,1);
+dx = zeros(nTot,1);
+dy = zeros(nTot,1);
+
+h = min(cellfun(@(t) min(t.bx - t.ax, t.by - t.ay), s));
+alpha = 0.12;
+epsLabel = -0.2 * h / (2^div);
+
+for i = 1:nFaces
+    for q = 1:2
+        b = 2*(i-1) + q;
+        ids = (b-1)*dofPerFace + (1:dofPerFace);
+
+        e = nd.elementsPerFace(i,q);
+        f = nd.elementSidePerFace(i,q);
+        ii = s{e}.idx(f);
+
+        xx = s{e}.px(ii);
+        yy = s{e}.py(ii);
+
+        cx = 0.5 * (s{e}.ax + s{e}.bx);
+        cy = 0.5 * (s{e}.ay + s{e}.by);
+
+        xx = (1 - alpha) * xx + alpha * cx;
+        yy = (1 - alpha) * yy + alpha * cy;
+
+        xp(ids) = xx;
+        yp(ids) = yy;
+
+        dx(ids) = sign(xx - cx) * epsLabel;
+        dy(ids) = sign(yy - cy) * epsLabel;
+        dx(ids(dx(ids)==0)) = epsLabel;
+    end
+end
+
+for e = 1:numel(s)
+    for c = 1:4
+        pd = pointDofPerElement(e,c);
+        if pd ~= 0
+            id = totalFaceDofs + pd;
+
+            ii = s{e}.idx_corners(c);
+            xx = s{e}.px(ii);
+            yy = s{e}.py(ii);
+
+            cx = 0.5 * (s{e}.ax + s{e}.bx);
+            cy = 0.5 * (s{e}.ay + s{e}.by);
+
+            xx = (1 - alpha) * xx + alpha * cx;
+            yy = (1 - alpha) * yy + alpha * cy;
+
+            xp(id) = xx;
+            yp(id) = yy;
+
+            dx(id) = sign(xx - cx) * epsLabel;
+            dy(id) = sign(yy - cy) * epsLabel;
+            if dx(id) == 0
+                dx(id) = epsLabel;
+            end
+        end
+    end
+end
+
+xp = xp(nd.permutation);
+yp = yp(nd.permutation);
+dx = dx(nd.permutation);
+dy = dy(nd.permutation);
+
+figure;
+scatter(xp,yp,30,'filled');
+axis equal;
+hold on
+for i = 1:nTot
+    text(xp(i) + dx(i), yp(i) + dy(i), sprintf('%d',i), ...
+        'FontSize',8, ...
+        'HorizontalAlignment','center', ...
+        'VerticalAlignment','middle');
+end
+title('Raw ordering');
+hold off
 end
 
 function plot_points_in_nd_permutation_order(s, div, nd, S2, varargin)

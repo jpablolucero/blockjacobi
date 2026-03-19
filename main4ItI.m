@@ -2,8 +2,8 @@ clear;
 
 k = 2;
 eta = k;
-[u_exact,rhs,c0,BC,IBC] = DtNTest1(k);
-% [u_exact,rhs,c0,BC,IBC] = ItITest1(k);
+[u_exact,rhs,c0,BC,IBC] = test1(k);
+% [u_exact,rhs,c0,BC,IBC] = test2(k);
 poincareSteklovOperator = "ItI";
 
 for div = 5:5
@@ -238,4 +238,5 @@ for div = 5:5
     surf(reshape(sNE.px, n, n), reshape(sNE.py, n, n), reshape(real(uNE), n, n));
     view(3);
     hold off;
+
 end
