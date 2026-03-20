@@ -8,12 +8,14 @@ classdef Multigrid < handle
         M
         bSize
         tol
+        maxit
+        restart
         m
     end
     methods
-        function obj = Multigrid(A_in,nd,lmax,m)
+        function obj = Multigrid(A_in,nd,lmax,tol,maxit,restart,m)
             obj.bSize = nd.nDofsPerMacroFace;
-            obj.m = m;
+            obj.tol = tol; obj.maxit = maxit ; obj.restart = restart;obj.m = m;
             obj.A = {};
             obj.M = {};
             obj.B = {};
@@ -58,6 +60,7 @@ classdef Multigrid < handle
             end
 
             rlx = obj.OptimalRelaxations(obj.m);
+            rho  = 1 - 1/(2*obj.m + 1)^2;
 
             if (level<length(obj.M))
                 
@@ -71,11 +74,17 @@ classdef Multigrid < handle
 
                 r    = obj.R(g - obj.M{level}*x, level);
 
-                Minv = @(z) obj.vcycle(z, level+1);
-                rho  = 1 - 1/(2*obj.m + 1)^2;
-
-                MinvR   = Minv(r);
-                e    = (1 + 1/rho) * MinvR - (1/rho) * Minv(obj.M{level+1} * MinvR);
+                MinvR = obj.vcycle(r, level+1);
+                e    = (1 + 1/rho) * MinvR - (1/rho) * obj.vcycle(obj.M{level+1} * MinvR, level+1);
+                
+                % [e, ~, ~] = fGMRES( ...
+                %     obj.M{level+1}, r, obj.tol, ...
+                %     'restart',   obj.restart, ...
+                %     'max_iters', obj.maxit, ...
+                %     'P',         @(z,tol) obj.vcycle(z, level+1), ...
+                %     'x0',        zeros(size(r)), ...
+                %     'verb',       0, ...
+                %     'tol_exit',  obj.tol);
 
                 x = x + obj.P(e, level);
 
@@ -86,7 +95,16 @@ classdef Multigrid < handle
                 end
            
             else       
-                x = obj.M{level}\g;
+                x = obj.M{level} \ g;
+
+                % [x, ~, ~] = fGMRES( ...
+                %     obj.M{level}, g, obj.tol, ...
+                %     'restart',   obj.restart, ...
+                %     'max_iters', obj.maxit, ...
+                %     'x0',        zeros(size(g)), ...
+                %     'verb',       0, ...
+                %     'tol_exit',  obj.tol);
+
             end
         end
 

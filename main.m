@@ -4,8 +4,8 @@ k = 2;
 
 poincareSteklovOperator = "ItI"; 
 
-for div = 3:3
-    calculate(4, div, true, @()test1(k), poincareSteklovOperator, k);
+for div = 2:2
+    calculate(2, div, true, @()test1(k), poincareSteklovOperator, k);
 end
 
 function calculate(div, divP, plot, test, poincareSteklovOperator, k)
@@ -98,16 +98,28 @@ S2 = S(nd.permutation, nd.permutation);
 R2 = R(nd.permutation);
 
 m = 1;
-S2inv = Multigrid(S2, nd, length(nd.levels), m);
+tol = 1.E-8;
+maxit = 2;
+restart = maxit;
+S2inv = Multigrid(S2, nd, length(nd.levels),tol,maxit,restart,m);
 
-M   = @(r) S2inv.vcycle(r);
-rho = 1 - 1/(2*m + 1)^2;
+M   = @(r,tol) S2inv.vcycle(r);
 
 u_skel = zeros(size(S2, 1), 1);
+
+% [u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
+%     'P', M, ...
+%     'max_iters', maxit, ...
+%     'restart',   restart,...
+%     'x0',        zeros(size(R2,1),1), ...
+%     'verb',      2, ...
+%     'tol_exit',  tol);
+
+rho = 1 - 1/(2*m + 1)^2;
 MR2 = M(R2);
 u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
-fprintf('Residual norm of skeleton solve: %e\n', norm(R2 - S2*u_skel(nd.permutation)));
+fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
 
 if poincareSteklovOperator == "DtN"
    % plot_points_in_nd_permutation_order(s, div, nd, S2);
