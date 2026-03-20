@@ -20,16 +20,16 @@ classdef Multigrid < handle
             obj.C = {};
             obj.D = {};
 
-            obj.M{1} = A_in;
+            obj.M{1} = sparse(A_in);
             ilevel = 1;
 
             while ilevel < lmax
                 nA = sum(obj.bSize{ilevel});
 
-                A = obj.M{end}(1:nA,     1:nA);
-                B = obj.M{end}(1:nA,     nA+1:end);
-                C = obj.M{end}(nA+1:end, 1:nA);
-                D = obj.M{end}(nA+1:end, nA+1:end);
+                A = sparse(obj.M{end}(1:nA,     1:nA));
+                B = sparse(obj.M{end}(1:nA,     nA+1:end));
+                C = sparse(obj.M{end}(nA+1:end, 1:nA));
+                D = sparse(obj.M{end}(nA+1:end, nA+1:end));
 
                 obj.M{end+1} = sparse(D - C * (A \ B));
                 obj.A{end+1} = A;
