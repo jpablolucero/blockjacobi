@@ -226,8 +226,6 @@ classdef NestedDissectionItI < handle
 
             usedPoint = false(size(pointDofPerElement));
 
-            % 1 = left, 2 = right, 3 = bottom, 4 = top
-            % boundary sides count as already numbered
             numberedSide = (obj.facePerElement == 0);
 
             rawCursor = 0;
@@ -245,12 +243,6 @@ classdef NestedDissectionItI < handle
                         for q = 1:2
                             e = obj.elementsPerFace(faceId,q);
                             s = obj.elementSidePerFace(faceId,q);
-
-                            % corners:
-                            % 1 = bottom-left
-                            % 2 = bottom-right
-                            % 3 = top-left
-                            % 4 = top-right
 
                             if s == 1
                                 cStart = 1;
