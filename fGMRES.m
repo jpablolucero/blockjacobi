@@ -1,63 +1,40 @@
 function [x,iter,resids] = fGMRES(A, b, tol, varargin)
 % Flexible GMRES method
-%   [x,iter] = fgmres(A, b, tol, varargin)
 %
-% Tries to solve a linear system Ax=b via the flexible GMRES
+%   [x,iter,resids] = fGMRES(A, b, tol, varargin)
 %
-% A should be given as a function handle @(x,tol)A(x), which computes the
-% Matrix-Vector product A*x with accuracy tol.
+% A may be
+%   - a matrix
+%   - a function handle @(x,tolA) A*x
 %
-% A and b can be passed as regular double arrays
+% P may be
+%   - empty
+%   - a matrix
+%   - a function handle @(x,tolP) P*x
 %
-% varargin may contain a sequence of tuning parameters of the form 
-% 'parameter1_name', parameter1_value, 'parameter2_name', parameter2_value
-% and so on. Available parameters and [default values] are the following.
-%   'relaxation' [0]: Inexact Krylov relaxation power. The accuracy for 
-%                       Krylov vectors is set as tol/(|r|/|b|)^relaxation, 
-%                       where r is the current residual
-%   'max_iters' [2]: Number of outer iterations
-%   'restart' [20]: Number of inner iterations
-%   'x0' [all-zeros vector]: Initial guess
-%   'verb' [2]:  Verbosity. 0 - Silent, 1 - outer iteration info, 2 - inner
-%                iteration info, 3 - iterations + return all solutions in td{2}
-%   'tol_exit' [tol]:  Stopping tolerance: exit if |r|/|b|<tol_exit
-%   'P' []: Preconditioning procedure in the same form as A, i.e. @(x,tol)P(x)
-%            
+% Parameters:
+%   'relaxation' [0]
+%   'max_iters'  [2]   number of restart cycles
+%   'restart'    [20]  inner iterations per cycle
+%   'x0'         [zeros]
+%   'verb'       [2]
+%   'tol_exit'   [tol]
+%   'P'          []
 %
-% Returns the solution x iteration numbers iter and residuals resids
-%
-%
-% Development: Sergey Dolgov ( sergey.v.dolgov@gmail.com ),
-% Max Planck Institute for Mathematics in the Sciences, Leipzig.
-%
-%TT-Toolbox 2.2, 2009-2012
-%
-%This is TT Toolbox, written by Ivan Oseledets et al.
-%Institute of Numerical Mathematics, Moscow, Russia
-%webpage: http://spring.inm.ras.ru/osel
-%
-%For all questions, bugs and suggestions please mail
-%ivan.oseledets@gmail.com
-%---------------------------
+% Returns:
+%   x      approximate solution
+%   iter   [outer_cycle, inner_iter]
+%   resids residual history per inner step, size restart x outer_cycles
 
-
-% Inexact Krylov relaxation power. The accuracy for Krylov vectors is set
-% as tol/(|r|/|b|)^relaxation, where r is the current residual
 relaxation = 0;
-% Number of outer iterations
 max_iters = 2;
-% Number of inner iterations
 restart = 20;
-% Initial guess
 x = [];
-% Verbosity
 verb = 2;
-% Stopping tolerance
 tol_exit = tol;
-% Prec 
 P = [];
 
-for i=1:2:length(varargin)-1
+for i = 1:2:length(varargin)-1
     switch lower(varargin{i})
         case 'relaxation'
             relaxation = varargin{i+1};
@@ -70,205 +47,210 @@ for i=1:2:length(varargin)-1
         case 'verb'
             verb = varargin{i+1};
         case 'tol_exit'
-            tol_exit = varargin{i+1};            
+            tol_exit = varargin{i+1};
         case 'p'
             P = varargin{i+1};
         otherwise
             error('Unknown tuning parameter "%s"', varargin{i});
-    end;
-end;
+    end
+end
 
+if isa(A, 'double')
+    A0 = A;
+    A = @(x,tolA) A0 * x;
+end
 
-% If we are given a single matrix, just use exact MV
-if (isa(A, 'double'))
-    A = @(x,tol)(A*x);
-end;
-
-if (~isempty(P))&&(isa(P, 'double'))
-    P = @(x,tol)(P*x);
-end;
+if ~isempty(P)
+    if isa(P, 'double')
+        P0 = P;
+        P = @(x,tolP) P0 * x;
+    end
+end
 
 n = size(b,1);
 
-if (restart>n)
+if restart > n
     restart = n;
-end;
+end
 
-% Norm of the RHS
 beta0 = norm(b);
-if (beta0==0)
-    x = zeros(n,1);
-    iter = 0;
-    resids = 0;
-    return;
-end;
 
-% Check for the initial guess
-if (isempty(x))
+if beta0 == 0
     x = zeros(n,1);
-end;
+    iter = [0, 0];
+    resids = 0;
+    return
+end
+
+if isempty(x)
+    x = zeros(n,1);
+end
+
+if nargout > 2
+    resids = zeros(restart, max_iters);
+end
 
 t_gmres_start = tic;
 
-% % Hessinberg matrix
-% H = zeros(restart+1, restart);
-% Householder data
-W = zeros(restart+1,1);
-R = zeros(restart, restart);
-J = zeros(2,restart);
+outer_done = 0;
+inner_done = 0;
+last_resid = norm(b - A(x, tol)) / beta0;
 
-% Krylov subspace
-V = cell(restart, 1);
-% Preconditioned subspace
-if (~isempty(P))
+for it = 1:max_iters
+    outer_done = it;
+
+    r = b - A(x, tol);
+    beta = norm(r);
+    resid0 = beta / beta0;
+
+    if verb > 1
+        fprintf('==fgmres== iter=%d, |r|=%g, relres=%3.3e, time=%g\n', ...
+            it-1, beta, resid0, toc(t_gmres_start));
+    end
+
+    if resid0 < tol_exit
+        inner_done = 0;
+        last_resid = resid0;
+        break
+    end
+
+    V = cell(restart + 1, 1);
     Z = cell(restart, 1);
-end;
+    H = zeros(restart + 1, restart);
+    cs = zeros(restart, 1);
+    sn = zeros(restart, 1);
+    g = zeros(restart + 1, 1);
 
-if (nargout>2)
-    resids = zeros(restart, max_iters);
-end;
+    V{1} = r / beta;
+    g(1) = beta;
 
-for it=1:max_iters
-    % Krylov tolerance
-    tol_kryl = tol;
-    % Compute the initial residual
-    if (it>1)||(norm(x)>0)
-        Ax = A(x, tol);
-        u = b - Ax;
-    else
-        u = b;
-    end;
-    beta = norm(u);
-    if (verb>1)
-        fprintf('==fgmres== iter=%d, |r| = %g, time=%g  \n', it-1, beta, toc(t_gmres_start));
-    end;
-    % Prepare the first Householder vector
-    if (u(1)<0)
-        beta = -beta;
-    end;
-    u(1) = u(1)+beta;    
-    u = u/norm(u);
-    % The first Hh entry
-    W(1) = -beta;
-    V{1} = u;
-    
-    for j=1:restart
-        % Construct the last vector from the HH storage
-        %  Form P1*P2*P3...Pj*ej.
-        %  v = Pj*ej = ej - 2*u*u'*ej
-        v = -2*conj(u(j))*u;
-        v(j) = v(j) + 1;
-        %  v = P1*P2*...Pjm1*(Pj*ej)
-        for i = (j-1):-1:1
-            v = v - 2*V{i}*(V{i}'*v);
-        end
-        %  Explicitly normalize v to reduce the effects of round-off.
-        v = v/norm(v);
-        
-        if (isempty(P))
-            w = A(v, tol_kryl);
+    happy_breakdown = false;
+
+    for j = 1:restart
+        inner_done = j;
+
+        if beta == 0
+            tol_kryl = tol;
         else
-            % Keep the PrecVec separately
-            Z{j} = P(v, tol_kryl);
-            w = A(Z{j}, tol_kryl);
-        end;
-        
-        % Orthogonalize the Krylov vector
-        %  Form Pj*Pj-1*...P1*Av.
+            err = abs(g(j)) / beta;
+            err = max(err, eps);
+            tol_kryl = tol / (err^relaxation);
+        end
+
+        if isempty(P)
+            Z{j} = V{j};
+        else
+            Z{j} = P(V{j}, tol_kryl);
+        end
+
+        w = A(Z{j}, tol_kryl);
+
         for i = 1:j
-            w = w - 2*V{i}*(V{i}'*w);
-        end        
-        
-        % Update the rotators
-        %  Determine Pj+1.
-        if (j ~= length(w))
-            %  Construct u for Householder reflector Pj+1.
-            u = [zeros(j,1); w(j+1:end)];
-            alpha = norm(u);
-            if (alpha ~= 0)
-                if (w(j+1)<0)
-                    alpha = -alpha;
-                end;
-                u(j+1) = u(j+1) + alpha;
-                u = u / norm(u);
-                V{j+1} = u;
-                
-                %  Apply Pj+1 to v.
-                %  v = v - 2*u*(u'*v);
-                w(j+2:end) = 0;
-                w(j+1) = -alpha;
-            end
+            H(i,j) = V{i}' * w;
+            w = w - H(i,j) * V{i};
         end
-        
-        %  Apply Given's rotations to the newly formed v.
-        for colJ = 1:j-1
-            tmpv = w(colJ);
-            w(colJ)   = conj(J(1,colJ))*w(colJ) + conj(J(2,colJ))*w(colJ+1);
-            w(colJ+1) = -J(2,colJ)*tmpv + J(1,colJ)*w(colJ+1);
-        end
-        
-        %  Compute Given's rotation Jm.
-        if (j~=length(w))
-            rho = norm(w(j:j+1));
-            J(:,j) = w(j:j+1)./rho;
-            W(j+1) = -J(2,j).*W(j);
-            W(j) = conj(J(1,j)).*W(j);
-            w(j) = rho;
-            w(j+1) = 0;
-        end
-        
-        R(:,j) = w(1:restart);    
-        
-        % Local and global residuals
-        err = abs(W(j+1))/abs(beta);
-        resid = abs(W(j+1))/beta0;
-        % Relax the Krylov tolerance
-        tol_kryl = tol/(err^relaxation);        
-                    
-        % report the residual
-        if (nargout>2)
-            resids(j,it)=resid;
-        end;
-                    
-        if (verb>1)
-            fprintf('==fgmres== iter=[%d,%d], resid=%3.3e, locerr=%3.3e, time=%g\n', it, j, resid, err, toc(t_gmres_start));
-        end;
 
-        if (resid<tol_exit); break; end;
-    end;
-    
-    % Correction
-    y = R(1:j,1:j) \ W(1:j);
-    if (isempty(P))
-        dx = -2*y(j)*V{j}*conj(V{j}(j));
-        dx(j) = dx(j) + y(j);
-        for i = j-1:-1:1
-            dx(i) = dx(i) + y(i);
-            dx = dx - 2*V{i}*(V{i}'*dx);
+        H(j+1,j) = norm(w);
+
+        if H(j+1,j) <= eps * norm(H(1:j,j))
+            happy_breakdown = true;
+            H(j+1,j) = 0;
+        else
+            V{j+1} = w / H(j+1,j);
         end
-    else
-        dx = zeros(n,1);
-        for i=j:-1:1
-            dx = dx + y(i)*Z{i};
-        end;
-    end;
-    x = x+dx;
-    
-    if (resid<tol_exit); break; end;
-end;
 
-if (verb>0)
-    fprintf('==fgmres== iters: %d outer + %d inner, resid: %3.3e, time: %g\n', it-1, j, resid, toc(t_gmres_start));
-end;
+        for i = 1:j-1
+            tmp = cs(i) * H(i,j) + sn(i) * H(i+1,j);
+            H(i+1,j) = -conj(sn(i)) * H(i,j) + cs(i) * H(i+1,j);
+            H(i,j) = tmp;
+        end
 
-% Output
-if (nargout>1)
-    iter = [it, j];
-end;
-if (nargout>2)
-    resids = resids(:, 1:it);
-    resids(j+1:restart,it)=resid;
-end;
+        [cs(j), sn(j)] = complex_givens(H(j,j), H(j+1,j));
+
+        H(j,j) = cs(j) * H(j,j) + sn(j) * H(j+1,j);
+        H(j+1,j) = 0;
+
+        tmp = cs(j) * g(j) + sn(j) * g(j+1);
+        g(j+1) = -conj(sn(j)) * g(j) + cs(j) * g(j+1);
+        g(j) = tmp;
+
+        resid = abs(g(j+1)) / beta0;
+        last_resid = resid;
+
+        if nargout > 2
+            resids(j,it) = resid;
+        end
+
+        if verb > 1
+            fprintf('==fgmres== iter=[%d,%d], resid=%3.3e, time=%g\n', ...
+                it, j, resid, toc(t_gmres_start));
+        end
+
+        if resid < tol_exit
+            break
+        end
+
+        if happy_breakdown
+            break
+        end
+    end
+
+    y = H(1:inner_done,1:inner_done) \ g(1:inner_done);
+
+    dx = zeros(n,1);
+    for i = 1:inner_done
+        dx = dx + Z{i} * y(i);
+    end
+
+    x = x + dx;
+
+    r = b - A(x, tol);
+    last_resid = norm(r) / beta0;
+
+    if nargout > 2
+        resids(inner_done:restart,it) = last_resid;
+    end
+
+    if verb > 0
+        fprintf('==fgmres== cycle=%d done, inner=%d, resid=%3.3e, time=%g\n', ...
+            it, inner_done, last_resid, toc(t_gmres_start));
+    end
+
+    if last_resid < tol_exit
+        break
+    end
+end
+
+iter = [outer_done, inner_done];
+
+if nargout > 2
+    resids = resids(:,1:outer_done);
+end
+
+if verb > 0
+    fprintf('==fgmres== iters: %d outer + %d inner, resid: %3.3e, time: %g\n', ...
+        max(outer_done-1,0), inner_done, last_resid, toc(t_gmres_start));
+end
 
 end
 
+function [c,s] = complex_givens(a, b)
+if b == 0
+    c = 1;
+    s = 0;
+    return
+end
+
+if a == 0
+    c = 0;
+    s = 1;
+    return
+end
+
+scale = abs(a) + abs(b);
+normab = scale * sqrt(abs(a / scale)^2 + abs(b / scale)^2);
+alpha = a / abs(a);
+
+c = abs(a) / normab;
+s = alpha * conj(b) / normab;
+end
