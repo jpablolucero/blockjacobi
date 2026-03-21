@@ -1,14 +1,52 @@
 clear;
 
-k = 160;
+k = 20;
 
 poincareSteklovOperator = "ItI"; 
 
-for div = 3:3
-    calculate(4, div, true, @()test3(k), poincareSteklovOperator, k);
+divVals  = 1:3;
+divPVals = 1:3;
+iters    = nan(numel(divVals), numel(divPVals));
+
+for i = 1:numel(divVals)
+    for j = 1:numel(divPVals)
+        div = divVals(i);
+        divP = divPVals(j);
+        fprintf('Running div=%d, divP=%d\n', div, divP);
+        iters(i,j) = calculate(div, divP, false, @()test3(k), poincareSteklovOperator, k);
+    end
 end
 
-function calculate(div, divP, plot, test, poincareSteklovOperator, k)
+Nsub = 2.^divPVals;
+localN = 2.^divVals;
+
+fprintf('\nIterations to reduce FGMRES residual by 1e-8\n');
+fprintf('Rows: subdomain size, Columns: global size in subdomains\n\n');
+fprintf('%16s','');
+for j = 1:numel(Nsub)
+    fprintf('%16s', sprintf('%d x %d', Nsub(j), Nsub(j)));
+end
+for j = 1:numel(Nsub)
+    fprintf('%16s','');
+end
+for j = 1:numel(Nsub)
+    fprintf('%16s','');
+end
+fprintf('\n');
+
+for i = 1:numel(localN)
+    fprintf('%16s', sprintf('%d x %d', localN(i), localN(i)));
+    for j = 1:numel(Nsub)
+        fprintf('%16d', iters(i,j));
+    end
+    fprintf('\n');
+end
+
+% for div = 3:3
+%     calculate(3, div, true, @()test4(k), poincareSteklovOperator, k);
+% end
+
+function [iterOut] = calculate(div, divP, plot, test, poincareSteklovOperator, k)
 
 [u_ref,rhs,c0,BC,IBC] = test();
 
@@ -77,11 +115,6 @@ for jy = 1:N
     end
 end
 
-% ================================================================
-%  Assemble, solve, reconstruct
-% ================================================================
-
-
 if poincareSteklovOperator == "DtN"
     nd = NestedDissection(divP);
     nd.divide(0);
@@ -99,13 +132,18 @@ R2 = R(nd.permutation);
 
 m = 1;
 tol = 1.E-8;
-maxit = 2;
+maxit = 60;
 restart = maxit;
-S2inv = Multigrid(S2, nd, length(nd.levels),tol,maxit,restart,m);
+
+nlevels = 8;
+
+if nlevels > length(nd.levels) ; nlevels = length(nd.levels); end 
+
+S2inv = Multigrid2(S2, nd, length(nd.levels)*0 + nlevels,tol,4,4,m);
 
 M   = @(r,tol) S2inv.vcycle(r);
 
-u_skel = zeros(size(S2, 1), 1);
+u_skel = zeros(size(S2,1), 1);
 
 [u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
     'P', M, ...
@@ -119,6 +157,8 @@ u_skel = zeros(size(S2, 1), 1);
 % MR2 = M(R2);
 % u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
+iterOut = (iter(1)-1)*restart + iter(2);
+
 fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
 
 if poincareSteklovOperator == "DtN"
@@ -129,25 +169,16 @@ else
     [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI(s, divP, div, IBC, nd, u_skel);
 end
 
-% ================================================================
-%  Error reporting
-% ================================================================
 u_ref_global = u_ref(pxG, pyG);
 
 fprintf("div: %i   divP: %i   (%i x %i subdomains)\n", div, divP, N, N);
 fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_global));
 fprintf("Rel L2 error u_global vs u_ref:     %.5e\n", norm(u_global - u_ref_global) / norm(u_ref_global));
 
-% ================================================================
-%  Compare with monolithic FEM
-% ================================================================
 [~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
                               2^(divP+div), 2^(divP+div), BC);
 fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
 
-% ================================================================
-%  Plot
-% ================================================================
 if plot
     rowsA = N * 2^div + 1;
     X = reshape(pxG, rowsA, rowsA);
