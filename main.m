@@ -1,26 +1,37 @@
 clear;
 
-k = 20;
+k = 4;
 
-poincareSteklovOperator = "ItI"; 
+poincareSteklovOperator = "DtN"; 
 
-divVals  = 1:3;
-divPVals = 1:3;
+divVals  = 1:4;
+divPVals = 1:4;
+levels   = nan(numel(divVals), numel(divPVals));
 iters    = nan(numel(divVals), numel(divPVals));
+relres   = nan(numel(divVals), numel(divPVals));
+relerr   = nan(numel(divVals), numel(divPVals));
 
+msg = '';
 for i = 1:numel(divVals)
     for j = 1:numel(divPVals)
         div = divVals(i);
         divP = divPVals(j);
-        fprintf('Running div=%d, divP=%d\n', div, divP);
-        iters(i,j) = calculate(div, divP, false, @()test3(k), poincareSteklovOperator, k);
+
+        fprintf([repmat('\b',1,length(msg)) repmat(' ',1,length(msg)) repmat('\b',1,length(msg))]);
+        msg = sprintf('Running %d x %d subdomains of size %d x %d...', 2^div, 2^div,2^divP,2^divP);
+        fprintf('%s', msg);
+        plot = false;
+        % if (i==numel(divVals) && j==numel(divPVals)) plot = true; end;
+        [iters(i,j),relres(i,j),relerr(i,j),levels(i,j)] = calculate(div, divP, plot, @()test1(k), poincareSteklovOperator, k, 0);
     end
 end
+fprintf('\n');
 
+function printTable(values,divPVals,divVals,title)
 Nsub = 2.^divPVals;
 localN = 2.^divVals;
 
-fprintf('\nIterations to reduce FGMRES residual by 1e-8\n');
+fprintf(title);
 fprintf('Rows: subdomain size, Columns: global size in subdomains\n\n');
 fprintf('%16s','');
 for j = 1:numel(Nsub)
@@ -33,20 +44,21 @@ for j = 1:numel(Nsub)
     fprintf('%16s','');
 end
 fprintf('\n');
-
 for i = 1:numel(localN)
     fprintf('%16s', sprintf('%d x %d', localN(i), localN(i)));
     for j = 1:numel(Nsub)
-        fprintf('%16d', iters(i,j));
+        fprintf('%16d', values(i,j));
     end
     fprintf('\n');
 end
+end
 
-% for div = 3:3
-%     calculate(3, div, true, @()test4(k), poincareSteklovOperator, k);
-% end
+printTable(levels,divPVals,divVals,'\nTotal number of Nested Dissection Levels\n');
+printTable( iters,divPVals,divVals,'\nIterations to reduce FGMRES residual by 1e-8\n');
+printTable(relres,divPVals,divVals,'\nFGMRES residual reduction\n');
+printTable(relerr,divPVals,divVals,'\nRelative error\n');
 
-function [iterOut] = calculate(div, divP, plot, test, poincareSteklovOperator, k)
+function [iterOut,relresOut,relerrOut,levelsOut] = calculate(div, divP, plot, test, poincareSteklovOperator, k, verbosity)
 
 [u_ref,rhs,c0,BC,IBC] = test();
 
@@ -127,6 +139,8 @@ else
     [S,R] = assembleItI(s, div, nd, IBC);
 end
 
+levelsOut = length(nd.levels);
+
 S2 = S(nd.permutation, nd.permutation);
 R2 = R(nd.permutation);
 
@@ -135,11 +149,11 @@ tol = 1.E-8;
 maxit = 60;
 restart = maxit;
 
-nlevels = 8;
+nlevels = 4;
 
 if nlevels > length(nd.levels) ; nlevels = length(nd.levels); end 
 
-S2inv = Multigrid2(S2, nd, length(nd.levels)*0 + nlevels,tol,4,4,m);
+S2inv = Multigrid1(S2, nd, length(nd.levels)*0 + nlevels,tol,2,2,m);
 
 M   = @(r,tol) S2inv.vcycle(r);
 
@@ -148,9 +162,9 @@ u_skel = zeros(size(S2,1), 1);
 [u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
     'P', M, ...
     'max_iters', maxit, ...
-    'restart',   restart,...
+    'restart',   length(R2),...
     'x0',        zeros(size(R2,1),1), ...
-    'verb',      2, ...
+    'verb',      0, ...
     'tol_exit',  tol);
 
 % rho = 1 - 1/(2*m + 1)^2;
@@ -158,9 +172,10 @@ u_skel = zeros(size(S2,1), 1);
 % u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
 iterOut = (iter(1)-1)*restart + iter(2);
-
-fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
-
+relresOut = norm(R2-S2*u_skel(nd.permutation)) / norm(R2);
+if (verbosity>0)
+    fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
+end
 if poincareSteklovOperator == "DtN"
    % plot_points_in_nd_permutation_order(s, div, nd, S2);
     [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
@@ -171,13 +186,18 @@ end
 
 u_ref_global = u_ref(pxG, pyG);
 
-fprintf("div: %i   divP: %i   (%i x %i subdomains)\n", div, divP, N, N);
-fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_global));
-fprintf("Rel L2 error u_global vs u_ref:     %.5e\n", norm(u_global - u_ref_global) / norm(u_ref_global));
+relerrOut = norm(u_global - u_ref_global) / norm(u_ref_global);
+if (verbosity>0)
+    fprintf("div: %i   divP: %i   (%i x %i subdomains)\n", div, divP, N, N);
+    fprintf("L2 error u_global vs u_ref (nodal): %.5e\n", norm(u_global - u_ref_global));
+    fprintf("Rel L2 error u_global vs u_ref:     %.5e\n", norm(u_global - u_ref_global) / norm(u_ref_global));
+end
 
-[~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
-                              2^(divP+div), 2^(divP+div), BC);
-fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+% [~,~,~,~,~,uMono] = get_fem(divP+div, c0, rhs, Xdom(1), Xdom(2), Ydom(1), Ydom(2), ...
+%                               2^(divP+div), 2^(divP+div), BC);
+% if (verbosity>0)
+%     fprintf("L2 error between discrete solutions: %.5e\n", norm(uMono - u_global));
+% end
 
 if plot
     rowsA = N * 2^div + 1;
