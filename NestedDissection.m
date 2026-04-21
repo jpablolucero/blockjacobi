@@ -162,6 +162,145 @@ classdef NestedDissection < handle
 
         end
 
+        function calculateReorderingCross(obj, dofsPerFace)
+
+            A = obj.map{1,1}{1,1};
+
+            n = size(A, 1);
+
+            nFaces = size(obj.elementsPerFace, 1);
+            nFaceDofsTotal = nFaces * dofsPerFace;
+            nCrossPoints = size(obj.crossPointGrid, 1);
+
+            cpIndex = zeros(n - 1, n - 1);
+            for cp = 1:nCrossPoints
+                cpIndex(obj.crossPointGrid(cp,2), obj.crossPointGrid(cp,1)) = cp;
+            end
+
+            obj.permutation = zeros(0,1);
+            obj.nDofsPerMacroFace = cell(obj.N,1);
+
+            for level = 1:obj.N
+
+                branchLength = 2^(level - 1);
+
+                centersX = branchLength:(2 * branchLength):(n - 1);
+                centersY = branchLength:(2 * branchLength):(n - 1);
+
+                obj.nDofsPerMacroFace{level} = zeros(numel(centersX) * numel(centersY), 1);
+
+                block = 0;
+
+                for cy = centersY
+                    for cx = centersX
+
+                        block = block + 1;
+                        blockStart = numel(obj.permutation) + 1;
+
+                        for branch = 1:4
+
+                            if branch == 1
+                                stackType  = 1;
+                                stackStart = cy - branchLength + 1;
+                                stackLen   = branchLength;
+                                stackFixed = cx;
+                                stackCp    = 0;
+                            elseif branch == 2
+                                stackType  = 1;
+                                stackStart = cy + 1;
+                                stackLen   = branchLength;
+                                stackFixed = cx;
+                                stackCp    = 0;
+                            elseif branch == 3
+                                stackType  = 2;
+                                stackStart = cx - branchLength + 1;
+                                stackLen   = branchLength;
+                                stackFixed = cy;
+                                stackCp    = 0;
+                            else
+                                stackType  = 2;
+                                stackStart = cx + 1;
+                                stackLen   = branchLength;
+                                stackFixed = cy;
+                                stackCp    = 0;
+                            end
+
+                            while ~isempty(stackType)
+
+                                type  = stackType(end);
+                                start = stackStart(end);
+                                len   = stackLen(end);
+                                fixed = stackFixed(end);
+                                cp    = stackCp(end);
+
+                                stackType(end)  = [];
+                                stackStart(end) = [];
+                                stackLen(end)   = [];
+                                stackFixed(end) = [];
+                                stackCp(end)    = [];
+
+                                if type == 3
+
+                                    obj.permutation = [obj.permutation; nFaceDofsTotal + cp];
+
+                                elseif len == 1
+
+                                    if type == 1
+                                        f = obj.facePerElement(A(start, fixed), 2);
+                                    else
+                                        f = obj.facePerElement(A(fixed, start), 4);
+                                    end
+
+                                    faceDofs = (f - 1) * dofsPerFace + (1:dofsPerFace);
+                                    obj.permutation = [obj.permutation; faceDofs(:)];
+
+                                else
+
+                                    half = len / 2;
+
+                                    if type == 1
+                                        cp = cpIndex(start + half - 1, fixed);
+                                    else
+                                        cp = cpIndex(fixed, start + half - 1);
+                                    end
+
+                                    stackType(end + 1)  = type;
+                                    stackStart(end + 1) = start + half;
+                                    stackLen(end + 1)   = half;
+                                    stackFixed(end + 1) = fixed;
+                                    stackCp(end + 1)    = 0;
+
+                                    stackType(end + 1)  = 3;
+                                    stackStart(end + 1) = 0;
+                                    stackLen(end + 1)   = 0;
+                                    stackFixed(end + 1) = 0;
+                                    stackCp(end + 1)    = cp;
+
+                                    stackType(end + 1)  = type;
+                                    stackStart(end + 1) = start;
+                                    stackLen(end + 1)   = half;
+                                    stackFixed(end + 1) = fixed;
+                                    stackCp(end + 1)    = 0;
+
+                                end
+
+                            end
+
+                            if branch == 3
+                                cp = cpIndex(cy, cx);
+                                obj.permutation = [obj.permutation; nFaceDofsTotal + cp];
+                            end
+
+                        end
+
+                        obj.nDofsPerMacroFace{level}(block) = numel(obj.permutation) - blockStart + 1;
+
+                    end
+                end
+            end
+
+        end
+
         function calculateReordering(obj, dofsPerFace)
 
             nFaceDofsTotal = size(obj.elementsPerFace, 1) * dofsPerFace;

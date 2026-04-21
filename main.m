@@ -1,62 +1,65 @@
 clear;
 
-k = 4;
+% k = 160;
+% 
+% poincareSteklovOperator = "ItI"; 
+% 
+% divVals  = 2:2;
+% divPVals = 3:3;
+% levels   = nan(numel(divVals), numel(divPVals));
+% iters    = nan(numel(divVals), numel(divPVals));
+% relres   = nan(numel(divVals), numel(divPVals));
+% relerr   = nan(numel(divVals), numel(divPVals));
+% 
+% msg = '';
+% for i = 1:numel(divVals)
+%     for j = 1:numel(divPVals)
+%         div = divVals(i);
+%         divP = divPVals(j);
+% 
+%         fprintf([repmat('\b',1,length(msg)) repmat(' ',1,length(msg)) repmat('\b',1,length(msg))]);
+%         msg = sprintf('Running %d x %d subdomains of size %d x %d...', 2^divP, 2^divP,2^div,2^div);
+%         fprintf('%s', msg);
+%         plot = false;
+%         % if (i==numel(divVals) && j==numel(divPVals)) plot = true; end;
+%         [iters(i,j),relres(i,j),relerr(i,j),levels(i,j)] = calculate(div, divP, plot, @()test3(k), poincareSteklovOperator, k, 0);
+%     end
+% end
+% fprintf('\n');
+% 
+% function printTable(values,divPVals,divVals,title)
+% Nsub = 2.^divPVals;
+% localN = 2.^divVals;
+% 
+% fprintf(title);
+% fprintf('Rows: subdomain size, Columns: global size in subdomains\n\n');
+% fprintf('%16s','');
+% for j = 1:numel(Nsub)
+%     fprintf('%16s', sprintf('%d x %d', Nsub(j), Nsub(j)));
+% end
+% for j = 1:numel(Nsub)
+%     fprintf('%16s','');
+% end
+% for j = 1:numel(Nsub)
+%     fprintf('%16s','');
+% end
+% fprintf('\n');
+% for i = 1:numel(localN)
+%     fprintf('%16s', sprintf('%d x %d', localN(i), localN(i)));
+%     for j = 1:numel(Nsub)
+%         fprintf('%16d', values(i,j));
+%     end
+%     fprintf('\n');
+% end
+% end
+% 
+% printTable(levels,divPVals,divVals,'\nTotal number of Nested Dissection Levels\n');
+% printTable( iters,divPVals,divVals,'\nIterations to reduce FGMRES residual by 1e-8\n');
+% printTable(relres,divPVals,divVals,'\nFGMRES residual reduction\n');
+% printTable(relerr,divPVals,divVals,'\nRelative error\n');
 
-poincareSteklovOperator = "DtN"; 
-
-divVals  = 1:4;
-divPVals = 1:4;
-levels   = nan(numel(divVals), numel(divPVals));
-iters    = nan(numel(divVals), numel(divPVals));
-relres   = nan(numel(divVals), numel(divPVals));
-relerr   = nan(numel(divVals), numel(divPVals));
-
-msg = '';
-for i = 1:numel(divVals)
-    for j = 1:numel(divPVals)
-        div = divVals(i);
-        divP = divPVals(j);
-
-        fprintf([repmat('\b',1,length(msg)) repmat(' ',1,length(msg)) repmat('\b',1,length(msg))]);
-        msg = sprintf('Running %d x %d subdomains of size %d x %d...', 2^div, 2^div,2^divP,2^divP);
-        fprintf('%s', msg);
-        plot = false;
-        % if (i==numel(divVals) && j==numel(divPVals)) plot = true; end;
-        [iters(i,j),relres(i,j),relerr(i,j),levels(i,j)] = calculate(div, divP, plot, @()test1(k), poincareSteklovOperator, k, 0);
-    end
-end
-fprintf('\n');
-
-function printTable(values,divPVals,divVals,title)
-Nsub = 2.^divPVals;
-localN = 2.^divVals;
-
-fprintf(title);
-fprintf('Rows: subdomain size, Columns: global size in subdomains\n\n');
-fprintf('%16s','');
-for j = 1:numel(Nsub)
-    fprintf('%16s', sprintf('%d x %d', Nsub(j), Nsub(j)));
-end
-for j = 1:numel(Nsub)
-    fprintf('%16s','');
-end
-for j = 1:numel(Nsub)
-    fprintf('%16s','');
-end
-fprintf('\n');
-for i = 1:numel(localN)
-    fprintf('%16s', sprintf('%d x %d', localN(i), localN(i)));
-    for j = 1:numel(Nsub)
-        fprintf('%16d', values(i,j));
-    end
-    fprintf('\n');
-end
-end
-
-printTable(levels,divPVals,divVals,'\nTotal number of Nested Dissection Levels\n');
-printTable( iters,divPVals,divVals,'\nIterations to reduce FGMRES residual by 1e-8\n');
-printTable(relres,divPVals,divVals,'\nFGMRES residual reduction\n');
-printTable(relerr,divPVals,divVals,'\nRelative error\n');
+k = 2;
+calculate(3, 3, true, @()test1(k), 'DtN', k, 1);
 
 function [iterOut,relresOut,relerrOut,levelsOut] = calculate(div, divP, plot, test, poincareSteklovOperator, k, verbosity)
 
@@ -86,7 +89,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         cnt = cnt + 1;
 
-        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_sem);
+        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_fem);
 
         if abs(s{cnt}.ax - Xdom(1)) < tol
             s{cnt}.setBoundaryCondition(sideBC{1}(s{cnt}.px(s{cnt}.idx(1)), s{cnt}.py(s{cnt}.idx(1))), 1);
@@ -130,7 +133,7 @@ end
 if poincareSteklovOperator == "DtN"
     nd = NestedDissection(divP);
     nd.divide(0);
-    nd.calculateReordering(2^div - 1);
+    nd.calculateReorderingCross(2^div - 1);
     [S,R] = assembleDtN(s, div, nd);
 else
     nd = NestedDissectionItI(divP);
@@ -144,34 +147,44 @@ levelsOut = length(nd.levels);
 S2 = S(nd.permutation, nd.permutation);
 R2 = R(nd.permutation);
 
+% plot_points_in_nd_permutation_orderDtN(s, div, nd, S2)
+
 m = 1;
 tol = 1.E-8;
-maxit = 60;
-restart = maxit;
+maxit = length(R2);
+restart = 60;
 
-nlevels = 4;
+u_skel(nd.permutation) = S2\R2;
 
-if nlevels > length(nd.levels) ; nlevels = length(nd.levels); end 
+u_skel = u_skel(:);
 
-S2inv = Multigrid1(S2, nd, length(nd.levels)*0 + nlevels,tol,2,2,m);
+% S2inv = Multigrid1(S2,nd,nd.levels,tol,maxit,restart,m);
+% M   = @(r,tol) S2inv.vcycle(r);
+% u_skel(nd.permutation) = M(R2);
 
-M   = @(r,tol) S2inv.vcycle(r);
-
-u_skel = zeros(size(S2,1), 1);
-
-[u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
-    'P', M, ...
-    'max_iters', maxit, ...
-    'restart',   length(R2),...
-    'x0',        zeros(size(R2,1),1), ...
-    'verb',      0, ...
-    'tol_exit',  tol);
+% nlevels = 4;
+% 
+% if nlevels > length(nd.levels) ; nlevels = length(nd.levels); end 
+% 
+% S2inv = Multigrid2(S2, nd, length(nd.levels)*0 + nlevels,tol,4,4,m);
+% 
+% M   = @(r,tol) S2inv.vcycle(r);
+% 
+% u_skel = zeros(size(S2,1), 1);
+% 
+% [u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
+%     'P', M, ...
+%     'max_iters', maxit, ...
+%     'restart',   length(R2),...
+%     'x0',        zeros(size(R2,1),1), ...
+%     'verb',      0, ...
+%     'tol_exit',  tol);
 
 % rho = 1 - 1/(2*m + 1)^2;
 % MR2 = M(R2);
 % u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
 
-iterOut = (iter(1)-1)*restart + iter(2);
+% iterOut = (iter(1)-1)*restart + iter(2);
 relresOut = norm(R2-S2*u_skel(nd.permutation)) / norm(R2);
 if (verbosity>0)
     fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
@@ -209,6 +222,68 @@ if plot
     view(3);
 end
 
+end
+
+function plot_points_in_nd_permutation_orderDtN(s, div, nd, S2, varargin)
+b = 2^div - 1;
+m = size(nd.elementsPerFace, 1) * b;
+ncp = max(nd.crossPointsPerElement(:));
+n = m + ncp;
+
+x = nan(n, 1);
+y = nan(n, 1);
+
+for e = 1:numel(s)
+    for f = 1:4
+        k = nd.facePerElement(e, f);
+        if k ~= 0
+            ids = (k - 1) * b + (1:b);
+            ii = s{e}.idx(f);
+            t = isnan(x(ids));
+            x(ids(t)) = s{e}.px(ii(t));
+            y(ids(t)) = s{e}.py(ii(t));
+        end
+    end
+
+    for j = 1:4
+        kp = nd.crossPointsPerElement(e, j);
+        if kp ~= 0
+            id = m + kp;
+            if isnan(x(id))
+                ii = s{e}.idx_corners(j);
+                x(id) = s{e}.px(ii);
+                y(id) = s{e}.py(ii);
+            end
+        end
+    end
+end
+
+if (length(varargin)>0)
+    p = nd.permutation(varargin{1});
+else
+    p = nd.permutation(:);
+end
+
+figure;
+scatter(x(p), y(p), 20, 'filled');
+axis equal;
+axis([0 1 0 1]);
+
+% Lines
+% pp = p(:);                          
+% S2p = S2(1:numel(pp), 1:numel(pp)); 
+% 
+% [I,J] = find(triu(S2p,1));
+% hold on
+% for k = 1:numel(I)
+%     gi = pp(I(k));  gj = pp(J(k));
+%     line([x(gi) x(gj)], [y(gi) y(gj)], 'Color',[0 0 0], 'LineWidth',0.25);
+% end
+% hold off
+
+for i = 1:numel(p)
+    text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
+end
 end
 
 function plotItIDofIndices(s,div,nd,S2)
