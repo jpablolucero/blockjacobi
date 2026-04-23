@@ -1,65 +1,7 @@
 clear;
 
-% k = 160;
-% 
-% poincareSteklovOperator = "ItI"; 
-% 
-% divVals  = 2:2;
-% divPVals = 3:3;
-% levels   = nan(numel(divVals), numel(divPVals));
-% iters    = nan(numel(divVals), numel(divPVals));
-% relres   = nan(numel(divVals), numel(divPVals));
-% relerr   = nan(numel(divVals), numel(divPVals));
-% 
-% msg = '';
-% for i = 1:numel(divVals)
-%     for j = 1:numel(divPVals)
-%         div = divVals(i);
-%         divP = divPVals(j);
-% 
-%         fprintf([repmat('\b',1,length(msg)) repmat(' ',1,length(msg)) repmat('\b',1,length(msg))]);
-%         msg = sprintf('Running %d x %d subdomains of size %d x %d...', 2^divP, 2^divP,2^div,2^div);
-%         fprintf('%s', msg);
-%         plot = false;
-%         % if (i==numel(divVals) && j==numel(divPVals)) plot = true; end;
-%         [iters(i,j),relres(i,j),relerr(i,j),levels(i,j)] = calculate(div, divP, plot, @()test3(k), poincareSteklovOperator, k, 0);
-%     end
-% end
-% fprintf('\n');
-% 
-% function printTable(values,divPVals,divVals,title)
-% Nsub = 2.^divPVals;
-% localN = 2.^divVals;
-% 
-% fprintf(title);
-% fprintf('Rows: subdomain size, Columns: global size in subdomains\n\n');
-% fprintf('%16s','');
-% for j = 1:numel(Nsub)
-%     fprintf('%16s', sprintf('%d x %d', Nsub(j), Nsub(j)));
-% end
-% for j = 1:numel(Nsub)
-%     fprintf('%16s','');
-% end
-% for j = 1:numel(Nsub)
-%     fprintf('%16s','');
-% end
-% fprintf('\n');
-% for i = 1:numel(localN)
-%     fprintf('%16s', sprintf('%d x %d', localN(i), localN(i)));
-%     for j = 1:numel(Nsub)
-%         fprintf('%16d', values(i,j));
-%     end
-%     fprintf('\n');
-% end
-% end
-% 
-% printTable(levels,divPVals,divVals,'\nTotal number of Nested Dissection Levels\n');
-% printTable( iters,divPVals,divVals,'\nIterations to reduce FGMRES residual by 1e-8\n');
-% printTable(relres,divPVals,divVals,'\nFGMRES residual reduction\n');
-% printTable(relerr,divPVals,divVals,'\nRelative error\n');
-
 k = 2;
-calculate(3, 3, true, @()test1(k), 'DtN', k, 1);
+calculate(2, 5, true, @()test1(k), 'DtN', k, 1);
 
 function [iterOut,relresOut,relerrOut,levelsOut] = calculate(div, divP, plot, test, poincareSteklovOperator, k, verbosity)
 
@@ -89,7 +31,7 @@ for jy = 1:N
         bx = Xdom(1) +  ix    * (Xdom(2)-Xdom(1)) / N;
         cnt = cnt + 1;
 
-        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_fem);
+        s{cnt} = Subdomain(div, rhs, ax, bx, ay, by, eta, c0, poincareSteklovOperator, @get_sem);
 
         if abs(s{cnt}.ax - Xdom(1)) < tol
             s{cnt}.setBoundaryCondition(sideBC{1}(s{cnt}.px(s{cnt}.idx(1)), s{cnt}.py(s{cnt}.idx(1))), 1);
@@ -142,58 +84,27 @@ else
     [S,R] = assembleItI(s, div, nd, IBC);
 end
 
-levelsOut = length(nd.levels);
-
-S2 = S(nd.permutation, nd.permutation);
-R2 = R(nd.permutation);
-
-% plot_points_in_nd_permutation_orderDtN(s, div, nd, S2)
+levelsOut = numel(nd.separatorBlockSizes);
 
 m = 1;
 tol = 1.E-8;
-maxit = length(R2);
+maxit = length(R);
 restart = 60;
 
-u_skel(nd.permutation) = S2\R2;
+lmax = numel(nd.separatorBlockSizes) + 1;
+M = Multigrid1(S, nd, lmax, tol, maxit, restart, m);
 
+u_skel = M.vcycle(R);
 u_skel = u_skel(:);
 
-% S2inv = Multigrid1(S2,nd,nd.levels,tol,maxit,restart,m);
-% M   = @(r,tol) S2inv.vcycle(r);
-% u_skel(nd.permutation) = M(R2);
-
-% nlevels = 4;
-% 
-% if nlevels > length(nd.levels) ; nlevels = length(nd.levels); end 
-% 
-% S2inv = Multigrid2(S2, nd, length(nd.levels)*0 + nlevels,tol,4,4,m);
-% 
-% M   = @(r,tol) S2inv.vcycle(r);
-% 
-% u_skel = zeros(size(S2,1), 1);
-% 
-% [u_skel(nd.permutation), iter, resvec] = fGMRES(S2, R2, tol, ...
-%     'P', M, ...
-%     'max_iters', maxit, ...
-%     'restart',   length(R2),...
-%     'x0',        zeros(size(R2,1),1), ...
-%     'verb',      0, ...
-%     'tol_exit',  tol);
-
-% rho = 1 - 1/(2*m + 1)^2;
-% MR2 = M(R2);
-% u_skel(nd.permutation) = (1 + 1/rho) * MR2 - (1/rho) * M(S2 * MR2);
-
-% iterOut = (iter(1)-1)*restart + iter(2);
-relresOut = norm(R2-S2*u_skel(nd.permutation)) / norm(R2);
-if (verbosity>0)
-    fprintf('Residual norm of skeleton solve: %e\n', norm(R - S*u_skel));
+relresOut = norm(R - S * u_skel) / norm(R);
+if (verbosity > 0)
+    fprintf('Residual norm of skeleton solve: %e\n', norm(R - S * u_skel));
 end
+
 if poincareSteklovOperator == "DtN"
-   % plot_points_in_nd_permutation_order(s, div, nd, S2);
     [u_global, ~, pxG, pyG] = reconstructVolumeSolution(s, divP, div, u_ref, nd, u_skel.');
 else
-   % plotItIDofIndices(s,div,nd,S2);
     [u_global, ~, pxG, pyG] = reconstructVolumeSolutionItI(s, divP, div, IBC, nd, u_skel);
 end
 
@@ -224,7 +135,7 @@ end
 
 end
 
-function plot_points_in_nd_permutation_orderDtN(s, div, nd, S2, varargin)
+function plot_points_in_nd_permutation_orderDtN(s, div, nd, level, varargin)
 b = 2^div - 1;
 m = size(nd.elementsPerFace, 1) * b;
 ncp = max(nd.crossPointsPerElement(:));
@@ -258,32 +169,137 @@ for e = 1:numel(s)
     end
 end
 
-if (length(varargin)>0)
-    p = nd.permutation(varargin{1});
-else
-    p = nd.permutation(:);
+if nargin < 4 || isempty(level)
+    level = 1;
+end
+
+if level < 1 || level > numel(nd.separatorBlockSizes) + 1
+    error('Invalid level');
+end
+
+p = nd.separatorPermutation{1};
+
+for j = 1:(level - 1)
+    p = p(sum(nd.separatorBlockSizes{j}) + 1:end);
+    if j + 1 <= numel(nd.separatorPermutation)
+        p = p(nd.separatorPermutation{j + 1});
+    end
 end
 
 figure;
 scatter(x(p), y(p), 20, 'filled');
 axis equal;
 axis([0 1 0 1]);
+hold on
 
-% Lines
-% pp = p(:);                          
-% S2p = S2(1:numel(pp), 1:numel(pp)); 
-% 
-% [I,J] = find(triu(S2p,1));
-% hold on
-% for k = 1:numel(I)
-%     gi = pp(I(k));  gj = pp(J(k));
-%     line([x(gi) x(gj)], [y(gi) y(gj)], 'Color',[0 0 0], 'LineWidth',0.25);
-% end
-% hold off
+if nargin > 4 && ~isempty(varargin{1})
+    Slevel = varargin{1};
+    Slevel = Slevel(1:numel(p), 1:numel(p));
+    [I, J] = find(triu(Slevel, 1));
+    for k = 1:numel(I)
+        gi = p(I(k));
+        gj = p(J(k));
+        line([x(gi) x(gj)], [y(gi) y(gj)], 'Color', [0 0 0], 'LineWidth', 0.25);
+    end
+end
 
 for i = 1:numel(p)
     text(x(p(i)), y(p(i)), sprintf('%d', i), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
 end
+
+hold off
+end
+
+function plot_faces_in_nd_permutation_orderDtN(s, nd, level)
+
+    if nargin < 3 || isempty(level)
+        level = 1;
+    end
+
+    if level < 1 || level > numel(nd.separatorBlockSizes) + 1
+        error('Invalid level');
+    end
+
+    b = numel(s{1}.idx(1));
+    nFaces = size(nd.elementsPerFace, 1);
+    nFaceDofsTotal = nFaces * b;
+
+    p = nd.separatorPermutation{1};
+
+    for j = 1:(level - 1)
+        p = p(sum(nd.separatorBlockSizes{j}) + 1:end);
+        if j + 1 <= numel(nd.separatorPermutation)
+            p = p(nd.separatorPermutation{j + 1});
+        end
+    end
+
+    p = p(p <= nFaceDofsTotal);
+
+    faceOrder = floor((p - 1) / b) + 1;
+    faceOrder = unique(faceOrder, 'stable');
+
+    xmin = inf;
+    xmax = -inf;
+    ymin = inf;
+    ymax = -inf;
+
+    for e = 1:numel(s)
+        xmin = min(xmin, min(s{e}.px));
+        xmax = max(xmax, max(s{e}.px));
+        ymin = min(ymin, min(s{e}.py));
+        ymax = max(ymax, max(s{e}.py));
+    end
+
+    figure;
+    hold on;
+    axis equal;
+    axis([xmin xmax ymin ymax]);
+
+    for k = 1:numel(faceOrder)
+        f = faceOrder(k);
+
+        e = nd.elementsPerFace(f, 1);
+        side = nd.elementSidePerFace(f, 1);
+
+        ii = s{e}.idx(side);
+
+        x1 = s{e}.px(ii(1));
+        y1 = s{e}.py(ii(1));
+        x2 = s{e}.px(ii(end));
+        y2 = s{e}.py(ii(end));
+
+        plot([x1 x2], [y1 y2], 'k', 'LineWidth', 2);
+
+        xm = mean(s{e}.px(ii));
+        ym = mean(s{e}.py(ii));
+
+        text(xm, ym, sprintf('%d', k), ...
+            'HorizontalAlignment', 'center', ...
+            'VerticalAlignment', 'middle', ...
+            'BackgroundColor', 'w');
+    end
+
+    nCrossPoints = size(nd.elementsPerCrossPoint, 1);
+
+    for kp = 1:nCrossPoints
+        e = nd.elementsPerCrossPoint(kp, 1);
+
+        if e == 0
+            e = nd.elementsPerCrossPoint(kp, 2);
+            j = 2;
+        else
+            j = 4;
+        end
+
+        ii = s{e}.idx_corners(j);
+        xp = s{e}.px(ii);
+        yp = s{e}.py(ii);
+
+        plot(xp, yp, 'k.', 'MarkerSize', 12);
+    end
+
+    hold off;
+
 end
 
 function plotItIDofIndices(s,div,nd,S2)
